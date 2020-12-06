@@ -13,11 +13,11 @@ SRC_PATH:=$(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 include $(SRC_PATH)/.module
 
 ifndef MODULE_NAME
-	$(error Add PAKCAGE_NAME in .package)
+	$(error Add PAKCAGE_NAME in .module)
 endif
 
 ifndef REPOSITORY_NAME
-	$(error Add REPOSITORY_NAME in .package)
+	$(error Add REPOSITORY_NAME in .module)
 endif
 
 # Help information.
