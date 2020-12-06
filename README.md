@@ -8,10 +8,11 @@
 
 # env
 
-Package env contains synonyms from the standard os package and implements
-various additional of the functions for manage the environment variables.
+The env module contains synonyms for the standard methods from the os module to
+manage environment and implements various additional methods which allow save
+environment variables to a GoLang structure.
 
-    - set environment variables from file;
+    - set environment variables from env-file;
     - marshal Go-structure to the environment;
     - unmarshal environment variables to Go-structure;
     - set variables to the environment;
@@ -46,19 +47,9 @@ To install the package you can use `go get`:
 
     $ go get -u github.com/goloop/env
 
-or use `git clone` and make link in `$GOPATH`:
+## Usage
 
-    $ mkdir -p ~/workspace && \
-      cd ~/workspace && \
-      git clone https://github.com/goloop/env.git && \
-      cd env && \
-      make link
-
-*Read more to test or upgrade the package: `make help`*.
-
-## Import
-
-To use this package import it as:
+To use this module import it as:
 
     import "github.com/goloop/env"
 
@@ -363,7 +354,7 @@ scope convertation.
 
 #### func  ReadParseStore
 
-    func ReadParseStore(filename string, expand, update, forced bool) error
+    func ReadParseStore(filename string, expand, update, forced bool) (err error)
 
 Arguments
 
