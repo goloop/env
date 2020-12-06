@@ -90,9 +90,8 @@ import (
 //     // HOST=0.0.0.0
 //     // PORT=80
 //     // EMAIL=goloop@goloop.one
-func ReadParseStore(filename string, expand, update, forced bool) error {
+func ReadParseStore(filename string, expand, update, forced bool) (err error) {
 	var (
-		err        error
 		file       *os.File
 		key, value string
 	)
@@ -100,7 +99,7 @@ func ReadParseStore(filename string, expand, update, forced bool) error {
 	// Open env-file.
 	file, err = os.Open(filename)
 	if err != nil {
-		return err // unable to open file
+		return // unable to open file
 	}
 	defer file.Close()
 
@@ -121,7 +120,7 @@ func ReadParseStore(filename string, expand, update, forced bool) error {
 			if forced {
 				continue // ignore wrong entry
 			}
-			return err // incorrect expression
+			return // incorrect expression
 		}
 
 		// Overwrite or add new value.
@@ -131,7 +130,7 @@ func ReadParseStore(filename string, expand, update, forced bool) error {
 			}
 			err = Set(key, value)
 			if err != nil {
-				return err
+				return
 			}
 		}
 	}
