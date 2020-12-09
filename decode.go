@@ -90,7 +90,7 @@ func setFieldValue(item *reflect.Value, args *tagArgs) error {
 	switch item.Kind() {
 	case reflect.Array:
 		max := item.Type().Len()
-		seq := split(args.Value, args.Sep)
+		seq := splitN(args.Value, args.Sep, -1)
 		if len(seq) > max {
 			return fmt.Errorf("%d overflows the [%d]array", len(seq), max)
 		}
@@ -100,7 +100,7 @@ func setFieldValue(item *reflect.Value, args *tagArgs) error {
 			return err
 		}
 	case reflect.Slice:
-		seq := split(args.Value, args.Sep)
+		seq := splitN(args.Value, args.Sep, -1)
 		tmp := reflect.MakeSlice(item.Type(), len(seq), len(seq))
 		err := setSequence(&tmp, seq)
 		if err != nil {

@@ -32,7 +32,7 @@ func (args tagArgs) IsIgnored() bool {
 
 // The getTagValues returns field valueas as array: [key, value, sep].
 func getTagValues(tag string) (r [3]string) {
-	var chunks = split(tag, ",")
+	var chunks = splitN(tag, ",", 3)
 	for i, c := range chunks {
 		// Save the last piece without changed.
 		if i == len(r)-1 {
