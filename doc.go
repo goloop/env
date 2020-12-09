@@ -55,7 +55,7 @@ Field's tag format is `env:"key[,value[,sep]]"`, where:
            value for the structure field type);
     sep    optional argument, sets the separator for lists (default `:`).
 
-## Quick start
+### Quick start
 
 There is a web-project that is develop and tests on the local computer and
 deploys on the production server. On the production server some settings
