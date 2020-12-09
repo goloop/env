@@ -53,6 +53,15 @@ To use this module import it as:
 
     import "github.com/goloop/env"
 
+### Tag format
+
+Field's tag format is `env:"key[,value[,sep]]"`, where:
+
+    key    matches the name of the key in the environment;
+    value  default value (if empty, set the default
+           value for the structure field type);
+    sep    optional argument, sets the separator for lists (default `:`).
+
 ## Quick start
 
 There is a web-project that is develop and tests on the local computer and

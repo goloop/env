@@ -68,7 +68,7 @@ func getTagArgs(tag string, key string) *tagArgs {
 	args.Value = strings.TrimRight(strings.TrimLeft(v[1], "({[\"'`"), ")}]\"'`")
 
 	// Separator of the list.
-	args.Sep = strings.Trim(v[2], " ")
+	args.Sep = v[2]
 	if len(args.Sep) == 0 {
 		args.Sep = ":"
 	}
