@@ -37,6 +37,8 @@ func TestGetTagArgs(t *testing.T) {
 		{"a", &tagArgs{"a", "", ":"}},
 		{"a,\"a, b, c\"", &tagArgs{"a", "a, b, c", ":"}},
 		{"11", &tagArgs{"11", "", ":"}},
+		{"a,b, ", &tagArgs{"a", "b", " "}}, // <-- set space for separator
+		{"a,b ", &tagArgs{"a", "b ", ":"}},
 	}
 
 	for i, s := range tests {
