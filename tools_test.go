@@ -31,22 +31,30 @@ func TestSts(t *testing.T) {
 // and (...), {...}, [...].
 func TestSplit(t *testing.T) {
 	type test struct {
+		n      int
 		value  string
 		result []string
 	}
 
 	var tests = []test{
-		{"a,b,c", []string{"a", "b", "c"}},
-		{"a,,c", []string{"a", "", "c"}},
-		{"a,,", []string{"a", "", ""}},
-		{"a,(b,c),d", []string{"a", "(b,c)", "d"}},
-		{"a,\"b,c\",d", []string{"a", "\"b,c\"", "d"}},
-		{"a,'b,c',d", []string{"a", "'b,c'", "d"}},
-		{"a,`b,c`,d", []string{"a", "`b,c`", "d"}},
+		{-1, "a,b,c", []string{"a", "b", "c"}},
+		{-1, "a,,c", []string{"a", "", "c"}},
+		{-1, "a,,", []string{"a", "", ""}},
+		{-1, "a,(b,c),d", []string{"a", "(b,c)", "d"}},
+		{-1, "a,\"b,c\",d", []string{"a", "\"b,c\"", "d"}},
+		{-1, "a,'b,c',d", []string{"a", "'b,c'", "d"}},
+		{-1, "a,`b,c`,d", []string{"a", "`b,c`", "d"}},
+		{-1, "a,b,c,d", []string{"a", "b", "c", "d"}},
+		{0, "a,b,c,d", []string{}},
+		{1, "a,b,c,d", []string{"a,b,c,d"}},
+		{2, "a,b,c,d", []string{"a", "b,c,d"}},
+		{3, "a,b,c,d", []string{"a", "b", "c,d"}},
+		{4, "a,b,c,d", []string{"a", "b", "c", "d"}},
+		{5, "a,b,c,d", []string{"a", "b", "c", "d"}},
 	}
 
 	for i, s := range tests {
-		if r := split(s.value, ","); sts(r, ":") != sts(s.result, ":") {
+		if r := splitN(s.value, ",", s.n); sts(r, ":") != sts(s.result, ":") {
 			t.Errorf("test %d is failed, expected %v but %v", i, s.result, r)
 		}
 	}
