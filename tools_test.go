@@ -51,6 +51,8 @@ func TestSplit(t *testing.T) {
 		{3, "a,b,c,d", []string{"a", "b", "c,d"}},
 		{4, "a,b,c,d", []string{"a", "b", "c", "d"}},
 		{5, "a,b,c,d", []string{"a", "b", "c", "d"}},
+		{3, "a_b_c,, ,", []string{"a_b_c", "", " ,"}},
+		{-1, "a_b_c,, ,", []string{"a_b_c", "", " ", ""}},
 	}
 
 	for i, s := range tests {

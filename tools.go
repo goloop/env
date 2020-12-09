@@ -115,7 +115,6 @@ func splitN(str, sep string, n int) (r []string) {
 	r = make([]string, 0, strings.Count(str, ",")+1)
 
 	// Split value.
-	// for _, char = range str {
 	for i := 0; i < utf8.RuneCountInString(str); i++ {
 		char = rune(str[i])
 		if level == 0 && contains(quotes+brackets, char) {
@@ -127,15 +126,22 @@ func splitN(str, sep string, n int) (r []string) {
 			if level <= 0 {
 				level, host = 0, 0
 			}
-		} else if sep == str[i:i+utf8.RuneCountInString(sep)] && level == 0 {
-			i += utf8.RuneCountInString(sep) - 1
-			r = append(r, tmp)
-			tmp = ""
-			if n > 0 && n == len(r)+1 {
-				tmp = string(str[i+utf8.RuneCountInString(sep) : len(str)])
-				break
+		} else if level == 0 {
+			endpoint := i + utf8.RuneCountInString(sep)
+			if endpoint > len(str) {
+				endpoint = len(str)
 			}
-			continue
+
+			if sep == str[i:endpoint] {
+				i += utf8.RuneCountInString(sep) - 1
+				r = append(r, tmp)
+				tmp = ""
+				if n > 0 && n == len(r)+1 {
+					tmp = string(str[endpoint:len(str)])
+					break
+				}
+				continue
+			}
 		}
 
 		tmp += string(char)
