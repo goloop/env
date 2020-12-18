@@ -137,7 +137,7 @@ func splitN(str, sep string, n int) (r []string) {
 				r = append(r, tmp)
 				tmp = ""
 				if n > 0 && n == len(r)+1 {
-					tmp = string(str[endpoint:len(str)])
+					tmp = str[endpoint:]
 					break
 				}
 				continue
