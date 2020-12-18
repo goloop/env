@@ -68,9 +68,9 @@ endif
 	golangci-lint run --no-config --issues-exit-code=0 --timeout=30m \
 		--disable-all --enable=deadcode  --enable=gocyclo --enable=golint \
 		--enable=varcheck --enable=structcheck --enable=maligned \
-		--enable=errcheck --enable=dupl --enable=ineffassign \
-		--enable=interfacer --enable=unconvert --enable=goconst \
-		--enable=gosec --enable=megacheck
+		--enable=gosec --enable=megacheck --enable=ineffassign \
+		--enable=interfacer --enable=unconvert \
+		--enable=goconst #--enable=errcheck --enable=dupl
 readme:
 ifeq (, $(shell which godocdown))
 	@go get github.com/robertkrimen/godocdown/godocdown
