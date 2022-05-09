@@ -5,6 +5,7 @@
 
 *Version: 0.0.7*
 
+**not supported**
 
 # env
 
