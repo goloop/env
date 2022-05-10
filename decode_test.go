@@ -29,7 +29,7 @@ func (c *dataUnmarshalENV) UnmarshalENV() error {
 // of an exception for a non-pointer value.
 func TestUnmarshalENVNotPointer(t *testing.T) {
 	type data struct{}
-	if err := unmarshalENV(data{}, ""); err == nil {
+	if err := unmarshalENV("", data{}); err == nil {
 		t.Error("an error is expected for non-pointer value")
 	}
 }
@@ -39,7 +39,7 @@ func TestUnmarshalENVNotPointer(t *testing.T) {
 func TestUnmarshalENVNotInitialized(t *testing.T) {
 	type data struct{}
 	var d *data
-	if err := unmarshalENV(d, ""); err == nil {
+	if err := unmarshalENV("", d); err == nil {
 		t.Error("an error is expected for not initialized value")
 	}
 }
@@ -48,7 +48,7 @@ func TestUnmarshalENVNotInitialized(t *testing.T) {
 // of an exception for a value that isn't a struct.
 func TestUnmarshalENVNotStruct(t *testing.T) {
 	var d = new(int)
-	if err := unmarshalENV(d, ""); err == nil {
+	if err := unmarshalENV("", d); err == nil {
 		t.Error("an error is expected for a pointer not to a struct")
 	}
 }
@@ -75,7 +75,7 @@ func TestUnmarshalENVCustom(t *testing.T) {
 		}
 	}
 
-	err = unmarshalENV(c, "")
+	err = unmarshalENV("", c)
 	if err != nil {
 		t.Error(err)
 	}
@@ -144,7 +144,7 @@ func TestUnmarshalENVNumbers(t *testing.T) {
 			}
 
 			// Unmarshaling.
-			err = unmarshalENV(d, "")
+			err = unmarshalENV("", d)
 
 			// Check error of the unmarshalling.
 			switch i {
@@ -225,7 +225,7 @@ func TestUnmarshalENVBool(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV(d, "")
+		err = unmarshalENV("", d)
 		if err != nil {
 			t.Error(err)
 		}
@@ -248,7 +248,7 @@ func TestUnmarshalENVBool(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV(d, "")
+		err = unmarshalENV("", d)
 		if err == nil {
 			t.Error("didn't handle the error")
 		}
@@ -283,7 +283,7 @@ func TestUnmarshalENVString(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV(d, "")
+		err = unmarshalENV("", d)
 		if err != nil {
 			t.Error(err)
 		}
@@ -370,7 +370,7 @@ func TestUnmarshalENVSlice(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV(d, "")
+		err = unmarshalENV("", d)
 		if err != nil {
 			t.Error(err)
 		}
@@ -404,7 +404,7 @@ func TestUnmarshalENVSlice(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV(d, "")
+		err = unmarshalENV("", d)
 		if err == nil {
 			t.Error("must be error for", value)
 		}
@@ -459,7 +459,7 @@ func TestUnmarshalENVArray(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV(d, "")
+		err = unmarshalENV("", d)
 		if err != nil {
 			t.Error(err)
 		}
@@ -492,7 +492,7 @@ func TestUnmarshalENVArray(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV(d, "")
+		err = unmarshalENV("", d)
 		if err == nil {
 			t.Error("There should be an exception due to an invalid value.")
 		}
@@ -511,7 +511,7 @@ func TestUnmarshalENVArray(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV(d, "")
+		err = unmarshalENV("", d)
 		if err == nil {
 			t.Error("There should be an exception due to array overflow.")
 		}
@@ -572,7 +572,7 @@ func TestUnmarshalURL(t *testing.T) {
 	}
 
 	// Unmarshaling.
-	err = unmarshalENV(&d, "")
+	err = unmarshalENV("", &d)
 	if err != nil {
 		t.Error(err)
 	}
@@ -663,7 +663,7 @@ func TestUnmarshalStruct(t *testing.T) {
 	}
 
 	// Unmarshaling.
-	err = unmarshalENV(&c, "")
+	err = unmarshalENV("", &c)
 	if err != nil {
 		t.Error("Incorrect ummarshaling.")
 	}
@@ -716,7 +716,7 @@ func TestUnmarshalStructPtr(t *testing.T) {
 	}
 
 	// Unmarshaling.
-	err = unmarshalENV(&c, "")
+	err = unmarshalENV("", &c)
 	if err != nil {
 		t.Error("Incorrect ummarshaling.")
 	}
@@ -753,7 +753,7 @@ func TestUnmarshalENVStringPtr(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = unmarshalENV(&d, "")
+	err = unmarshalENV("", &d)
 	if err != nil {
 		t.Error(err)
 	}
@@ -786,7 +786,7 @@ func TestUnmarshalDefaultValue(t *testing.T) {
 
 	// Unmarshaling wit default values.
 	d = data{}
-	err = unmarshalENV(&d, "")
+	err = unmarshalENV("", &d)
 	if err != nil {
 		t.Error("Incorrect ummarshaling.")
 	}
@@ -813,7 +813,7 @@ func TestUnmarshalDefaultValue(t *testing.T) {
 
 	// Unmarshaling wit environment values.
 	d = data{}
-	err = unmarshalENV(&d, "")
+	err = unmarshalENV("", &d)
 	if err != nil {
 		t.Error("Incorrect ummarshaling.")
 	}

@@ -23,7 +23,7 @@ type Marshaler interface {
 // processed recursively.
 //
 // For other filed's types (like chan, map ...) will be returned an error.
-func marshalENV(obj interface{}, pfx string) (result []string, err error) {
+func marshalENV(pfx string, obj interface{}) (result []string, err error) {
 	// Note: convert *object to object and mean that we use reflection
 	//       on the object but not a pointer on it.
 	var rt, rv = reflect.TypeOf(obj), reflect.ValueOf(obj)
@@ -90,7 +90,7 @@ func marshalENV(obj interface{}, pfx string) (result []string, err error) {
 
 			// Another struct.
 			p := fmt.Sprintf("%s%s_", pfx, args.Key)
-			value, err := marshalENV(item.Interface(), p)
+			value, err := marshalENV(p, item.Interface())
 			if err != nil {
 				return result, err
 			}

@@ -1,6 +1,7 @@
 package env
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 	"testing"
@@ -40,7 +41,7 @@ func (c *CustomMarshal) MarshalENV() ([]string, error) {
 func TestMarshalENVNilPointer(t *testing.T) {
 	type Empty struct{}
 	var value *Empty
-	if _, err := marshalENV(value, ""); err == nil {
+	if _, err := marshalENV("", value); err == nil {
 		t.Error("exception expected for an uninitialized object")
 	}
 }
@@ -70,7 +71,7 @@ func TestMarshalENV(t *testing.T) {
 	}
 
 	Clear()
-	_, err := marshalENV(value, "")
+	_, err := marshalENV("", value)
 	if err != nil {
 		t.Error(err)
 	}
@@ -109,7 +110,7 @@ func TestMarshalENVPtr(t *testing.T) {
 	}
 
 	Clear()
-	_, err := marshalENV(value, "")
+	_, err := marshalENV("", value)
 	if err != nil {
 		t.Error(err)
 	}
@@ -142,7 +143,7 @@ func TestMarshalENVCustom(t *testing.T) {
 	}
 
 	Clear()
-	_, err := marshalENV(scope, "")
+	_, err := marshalENV("", scope)
 	if err != nil {
 		t.Error(err)
 	}
@@ -171,7 +172,7 @@ func TestMarshalENVCustomPtr(t *testing.T) {
 	}
 
 	Clear()
-	_, err := marshalENV(scope, "")
+	_, err := marshalENV("", scope)
 	if err != nil {
 		t.Error(err)
 	}
@@ -223,7 +224,7 @@ func TestMarshalENVURL(t *testing.T) {
 		},
 	}
 
-	_, err := marshalENV(data, "")
+	_, err := marshalENV("", data)
 	if err != nil {
 		t.Error(err)
 	}
@@ -289,7 +290,7 @@ func TestMarshalENVStruct(t *testing.T) {
 	}
 
 	// Marshaling.
-	result, _ := marshalENV(data, "")
+	result, _ := marshalENV("", data)
 
 	// Tests.
 	if v := Get("USER_NAME"); v != "John" {
@@ -332,7 +333,7 @@ func TestMarshalENVStructPtr(t *testing.T) {
 	}
 
 	// Marshaling.
-	result, _ := marshalENV(data, "")
+	result, _ := marshalENV("", data)
 
 	// Tests.
 	if v := Get("USER_NAME"); v != "John" {
@@ -367,18 +368,18 @@ func TestMarshalENVNumberPtr(t *testing.T) {
 	}
 
 	var (
-		keyInt     int     = 7
-		keyInt8    int8    = 7
-		keyInt16   int16   = 7
-		keyInt32   int32   = 7
-		keyInt64   int64   = 7
-		keyUint    uint    = 7
-		keyUint8   uint8   = 7
-		keyUint16  uint16  = 7
-		keyUint32  uint32  = 7
-		keyUint64  uint64  = 7
-		keyFloat32 float32 = 7.0
-		keyFloat64 float64 = 7.0
+		keyInt     = int(7)
+		keyInt8    = int8(7)
+		keyInt16   = int16(7)
+		keyInt32   = int32(7)
+		keyInt64   = int64(7)
+		keyUint    = uint(7)
+		keyUint8   = uint8(7)
+		keyUint16  = uint16(7)
+		keyUint32  = uint32(7)
+		keyUint64  = uint64(7)
+		keyFloat32 = float32(7.0)
+		keyFloat64 = float64(7.0)
 
 		value = Struct{
 			KeyInt:     &keyInt,
@@ -398,7 +399,7 @@ func TestMarshalENVNumberPtr(t *testing.T) {
 
 	// ...
 	Clear()
-	_, err := marshalENV(value, "")
+	_, err := marshalENV("", value)
 	if err != nil {
 		t.Error(err)
 	}
@@ -423,7 +424,7 @@ func TestMarshalENVBoolPtr(t *testing.T) {
 	}
 
 	var (
-		keyBool bool = true
+		keyBool = true
 
 		value = Struct{
 			KeyBool: &keyBool,
@@ -432,7 +433,7 @@ func TestMarshalENVBoolPtr(t *testing.T) {
 
 	// ...
 	Clear()
-	_, err := marshalENV(value, "")
+	_, err := marshalENV("", value)
 	if err != nil {
 		t.Error(err)
 	}
@@ -450,7 +451,7 @@ func TestMarshalENVStringPtr(t *testing.T) {
 	}
 
 	var (
-		keyString string = "Hello World"
+		keyString = "Hello World"
 
 		value = Struct{
 			KeyString: &keyString,
@@ -459,7 +460,7 @@ func TestMarshalENVStringPtr(t *testing.T) {
 
 	// ...
 	Clear()
-	_, err := marshalENV(value, "")
+	_, err := marshalENV("", value)
 	if err != nil {
 		t.Error(err)
 	}
@@ -504,8 +505,36 @@ func TestMarshalENVSlice(t *testing.T) {
 	// 	return strings.Trim(strings.Replace(fmt.Sprint(v), " ", ":", -1), "[]")
 	// }
 
-	_, err := marshalENV(s, "")
+	_, err := marshalENV("", s)
 	if err != nil {
 		t.Error(err)
+	}
+}
+
+// TestUnmarshal...
+func TestUnmarshal(t *testing.T) {
+	type server struct {
+		Name string `env:"NAME"`
+		Host string `env:"HOST"`
+		Port int    `env:"PORT"`
+	}
+
+	var (
+		serverA = server{}
+		serverB = server{}
+	)
+
+	Clear()
+	err := ReadParseStore("./fixtures/multiserver.env", true, true, true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	Unmarshal("SERVICE_A_", &serverA)
+	Unmarshal("SERVICE_B_", &serverB)
+
+	if serverA.Name != "A" || serverB.Name != "B" {
+		fmt.Println(Environ())
+		t.Errorf("expected `server a` but `%s`", serverA.Name)
 	}
 }
