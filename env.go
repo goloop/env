@@ -5,10 +5,9 @@ import (
 	"os"
 )
 
-// ReadParseStore reads env-file, parses it by key and value, and
-// stores into the environment. It's flexible function that can be
-// used to build more specific tools.
-
+// ReadParseStore reads env-file, parses this one by the key and value, and
+// stores into environment. It's flexible function that can be used to build
+// more specific tools.
 //
 // Arguments
 //
@@ -405,8 +404,8 @@ func Exists(keys ...string) bool {
 //     config.Host         // "192.168.0.1"
 //     config.Port         // 80
 //     config.AllowedHosts // []string{"192.168.0.1"}
-func Unmarshal(obj interface{}) error {
-	return unmarshalENV(obj, "")
+func Unmarshal(prefix string, obj interface{}) error {
+	return unmarshalENV(prefix, obj)
 }
 
 // Marshal converts the structure in to key/value and put it into environment
@@ -478,6 +477,6 @@ func Unmarshal(obj interface{}) error {
 //     env.Get("HOST")          // "192.168.0.1"
 //     env.Get("PORT")          // "80"
 //     env.Get("ALLOWED_HOSTS") // "192.168.0.1"
-func Marshal(scope interface{}) ([]string, error) {
-	return marshalENV(scope, "")
+func Marshal(prefix string, scope interface{}) ([]string, error) {
+	return marshalENV(prefix, scope)
 }
