@@ -29,7 +29,7 @@ type Unmarshaler interface {
 //
 // The pfx argument serves as a marker of the nesting level during the
 // recursive processing of object fields (as prefix for environment variables).
-func unmarshalENV(obj interface{}, pfx string) (err error) {
+func unmarshalENV(pfx string, obj interface{}) (err error) {
 	var t, e = reflect.TypeOf(obj), reflect.ValueOf(obj)
 
 	// The obj argument should be a pointer to initialized object.
@@ -128,7 +128,7 @@ func setFieldValue(item *reflect.Value, args *tagArgs) error {
 		// If a pointer to a structure of the another's types.
 		// P.s. Not a *url.URL.
 		tmp := reflect.New(item.Type().Elem()).Interface()
-		err := unmarshalENV(tmp, fmt.Sprintf("%s_", args.Key))
+		err := unmarshalENV(fmt.Sprintf("%s_", args.Key), tmp)
 		if err != nil {
 			return err
 		}
@@ -146,7 +146,7 @@ func setFieldValue(item *reflect.Value, args *tagArgs) error {
 		// If a structure of the another's types.
 		// P.s. Not a url.URL.
 		tmp := reflect.New(item.Type()).Interface()
-		err := unmarshalENV(tmp, fmt.Sprintf("%s_", args.Key))
+		err := unmarshalENV(fmt.Sprintf("%s_", args.Key), tmp)
 		if err != nil {
 			return err
 		}

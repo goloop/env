@@ -316,7 +316,7 @@ func TestExist(t *testing.T) {
 
 	// Variables is exists.
 	if !Exists("KEY_0") || !Exists("KEY_0", "KEY_1") {
-		t.Error("expected value `ture` but `false`")
+		t.Error("expected value `true` but `false`")
 	}
 
 	// Variables doesn't exists.
