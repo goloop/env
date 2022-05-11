@@ -5,156 +5,183 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"os"
 	"reflect"
 	"strconv"
+	"strings"
 )
 
 // Unmarshaler is the interface implements by types that can
 // unmarshal an environment variables of themselves.
 type Unmarshaler interface {
-	UnmarshalENV() error
+	UnmarshalEnv() error
 }
 
-// The unmarshalENV read variables from the environment and save them into obj.
-// The obj should passed as a pointer on the object (Object Pointer).
+// The unmarshalEnv read variables from the environment
+// and save them into Go-struct.
 //
 // Method supports the following type of the fields: int, int8, int16, int32,
 // int64, uin, uint8, uin16, uint32, in64, float32, float64, string, bool,
-// struct, url.URL and pointers, array or slice from thous types (i.e. *int,
+// struct, url.URL and pointers, array or slice from types like (i.e. *int,
 // *uint, ..., []int, ..., []bool, ..., [2]*url.URL, etc.). The fields as
 // a struct or pointer on the struct will be processed recursively.
 //
-// For other type of the filed (i.e chan, map ...) or upon occurrence other
+// For other type of the fields (i.e chan, map ...) or upon occurrence other
 // conversion problems will be returned an error.
 //
-// The pfx argument serves as a marker of the nesting level during the
-// recursive processing of object fields (as prefix for environment variables).
-func unmarshalENV(pfx string, obj interface{}) (err error) {
+// The prefix argument filters keys by a certain prefix and used as a marker
+// of the nesting level during the recursive processing of object fields
+// (as prefix for environment variables).
+//
+// The obj is a pointer to an initialized object where need to
+// save variables from the environment.
+func unmarshalEnv(prefix string, obj interface{}) error {
 	var t, e = reflect.TypeOf(obj), reflect.ValueOf(obj)
 
-	// The obj argument should be a pointer to initialized object.
-	if obj == nil ||
-		t.Kind() != reflect.Ptr || // check for pointer first ...
-		t.Elem().Kind() != reflect.Struct || // ... and after on the struct
-		!e.Elem().IsValid() {
-		return errors.New("cannot unmarshal environment into not *struct type")
+	// The obj argument should be a pointer to an initialized struct.
+	switch {
+	case obj == nil:
+		fallthrough
+	case t.Kind() != reflect.Ptr: // check for pointer first ...
+		fallthrough
+	case t.Elem().Kind() != reflect.Struct: // ... after on the struct
+		fallthrough
+	case !e.Elem().IsValid():
+		return errors.New("obj should be a pointer to an initialized struct")
 	}
 
-	// If objects implements Unmarshaler interface try to calling
-	// a custom Unmarshal method.
+	// If objects implements Unmarshaler interface
+	// try to calling a custom Unmarshal method.
 	if e.Type().Implements(reflect.TypeOf((*Unmarshaler)(nil)).Elem()) {
-		if m := e.MethodByName("UnmarshalENV"); m.IsValid() {
+		if m := e.MethodByName("UnmarshalEnv"); m.IsValid() {
 			tmp := m.Call([]reflect.Value{})
-			err := tmp[0].Interface()
-			if err != nil {
+			if err := tmp[0].Interface(); err != nil {
 				return fmt.Errorf("%v", err)
 			}
+
 			return nil
 		}
 	}
 
-	// Walk through all the fields of the structure and
-	// load data from the environment.
+	// Walk through all the fields of the structure
+	// and save data from the environment.
 	elem := e.Elem()
 	for i := 0; i < elem.NumField(); i++ {
-		// Parse tag arguments of the field.
 		field := t.Elem().Field(i)
-		args := getTagArgs(field.Tag.Get("env"), field.Name)
-		if !args.IsValid() {
-			return fmt.Errorf("invalid key name: %s", args.Key)
-		} else if args.IsIgnored() {
-			continue
+
+		// Parse tag arguments of the field.
+		// args := getTagArgs(field.Tag.Get("env"), field.Name)
+		// if !args.IsValid() {
+		// 	return fmt.Errorf("invalid key name: %s", args.Key)
+		// } else if args.IsIgnored() {
+		// 	continue
+		// }
+
+		// ...
+		key := strings.Trim(field.Tag.Get(keyTagName), " ")
+		if key == "" {
+			key = field.Name
 		}
 
-		// If recursive analysis is performed set nesting level.
-		args.Key = fmt.Sprintf("%s%s", pfx, args.Key)
+		sep := field.Tag.Get(sepTagName)
+		if sep == "" {
+			sep = defSepValue
+		}
 
-		// If the value is defined in environment set it into value.
-		if Exists(args.Key) {
-			args.Value = Get(args.Key)
+		tg := &tagGroup{
+			key:   fmt.Sprintf("%s%s", prefix, key),
+			value: field.Tag.Get(valueTagName),
+			sep:   sep,
+		}
+
+		if !tg.isValid() {
+			return fmt.Errorf(
+				"the %s field does not have a valid key name value: %s",
+				field.Name,
+				tg.key,
+			)
+		}
+
+		// If the key exists - take its value from environment.
+		if v, ok := os.LookupEnv(tg.key); ok {
+			tg.value = v
 		}
 
 		// Set value to field.
 		item := elem.FieldByName(field.Name)
-		err := setFieldValue(&item, args)
-		if err != nil {
-			return fmt.Errorf("%v", err)
+		if err := setFieldValue(&item, tg); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-// The setFieldValue sets value to field from the tag araguments.
-func setFieldValue(item *reflect.Value, args *tagArgs) error {
+// The setFieldValue sets value to field from the tag arguments.
+func setFieldValue(item *reflect.Value, tg *tagGroup) error {
 	switch item.Kind() {
 	case reflect.Array:
 		max := item.Type().Len()
-		seq := splitN(args.Value, args.Sep, -1)
+		seq := splitN(tg.value, tg.sep, -1)
 		if len(seq) > max {
 			return fmt.Errorf("%d overflows the [%d]array", len(seq), max)
 		}
 
-		err := setSequence(item, seq)
-		if err != nil {
+		if err := setSequence(item, seq); err != nil {
 			return err
 		}
 	case reflect.Slice:
-		seq := splitN(args.Value, args.Sep, -1)
+		seq := splitN(tg.value, tg.sep, -1)
 		tmp := reflect.MakeSlice(item.Type(), len(seq), len(seq))
-		err := setSequence(&tmp, seq)
-		if err != nil {
+		if err := setSequence(&tmp, seq); err != nil {
 			return err
 		}
+
 		item.Set(reflect.AppendSlice(*item, tmp))
 	case reflect.Ptr:
 		if item.Type().Elem().Kind() != reflect.Struct {
-			// If the pointer is not to a structure.
+			// If the pointer of a structure.
 			tmp := reflect.Indirect(*item)
-			err := setValue(tmp, args.Value)
-			if err != nil {
+			if err := setValue(tmp, tg.value); err != nil {
 				return err
 			}
 			break
 		} else if item.Type() == reflect.TypeOf((*url.URL)(nil)) {
-			// If a pointer to a structure of the url.URL.
-			err := setValue(*item, args.Value)
-			if err != nil {
+			// If a pointer of a url.URL structure.
+			if err := setValue(*item, tg.value); err != nil {
 				return err
 			}
 			break
 		}
 
-		// If a pointer to a structure of the another's types.
-		// P.s. Not a *url.URL.
+		// If a pointer to a structure of the another's types (not a *url.URL).
+		// Perform recursive analysis of nested structure fields.
 		tmp := reflect.New(item.Type().Elem()).Interface()
-		err := unmarshalENV(fmt.Sprintf("%s_", args.Key), tmp)
-		if err != nil {
+		if err := unmarshalEnv(fmt.Sprintf("%s_", tg.key), tmp); err != nil {
 			return err
 		}
+
 		item.Set(reflect.ValueOf(tmp))
 	case reflect.Struct:
 		if item.Type() == reflect.TypeOf(url.URL{}) {
 			// If a url.URL structure.
-			err := setValue(*item, args.Value)
-			if err != nil {
+			if err := setValue(*item, tg.value); err != nil {
 				return err
 			}
 			break
 		}
 
-		// If a structure of the another's types.
-		// P.s. Not a url.URL.
+		// If a structure of the another's types (not a url.URL).
+		// Perform recursive analysis of nested structure fields.
 		tmp := reflect.New(item.Type()).Interface()
-		err := unmarshalENV(fmt.Sprintf("%s_", args.Key), tmp)
-		if err != nil {
+		if err := unmarshalEnv(fmt.Sprintf("%s_", tg.key), tmp); err != nil {
 			return err
 		}
+
 		item.Set(reflect.ValueOf(tmp).Elem())
 	default:
 		// Try to set correct value.
-		err := setValue(*item, args.Value)
-		if err != nil {
+		if err := setValue(*item, tg.value); err != nil {
 			return err
 		}
 	}
