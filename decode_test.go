@@ -3,19 +3,20 @@ package env
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 )
 
-// The dataUnmarshalENV structure with custom UnmarshalENV method.
-type dataUnmarshalENV struct {
+// The config structure with custom UnmarshalEnv method.
+type config struct {
 	Host         string   `env:"HOST"`
 	Port         int      `env:"PORT"`
 	AllowedHosts []string `env:"ALLOWED_HOSTS,:"`
 }
 
-// UnmarshalENV the custom method for unmarshalling data from the environment.
-func (c *dataUnmarshalENV) UnmarshalENV() error {
+// UnmarshalEnv the custom method for unmarshalling data from the environment.
+func (c *config) UnmarshalEnv() error {
 	// You can use different methods to get data from the environment
 	// like os.Getenv or env.Get and process the result according
 	// to custom requirements.
@@ -25,39 +26,36 @@ func (c *dataUnmarshalENV) UnmarshalENV() error {
 	return nil
 }
 
-// TestUnmarshalENVNotPointer tests unmarshalENV for the correct handling
+// TestUnmarshalEnvNotPointer tests unmarshalEnv for the correct handling
 // of an exception for a non-pointer value.
-func TestUnmarshalENVNotPointer(t *testing.T) {
-	type data struct{}
-	if err := unmarshalENV("", data{}); err == nil {
-		t.Error("an error is expected for non-pointer value")
+func TestUnmarshalEnvNotPointer(t *testing.T) {
+	if err := unmarshalEnv("", struct{}{}); err == nil {
+		t.Error("an error is expected for no-pointer value")
 	}
 }
 
-// TestUnmarshalENVNotInitialized tests unmarshalENV for the correct handling
+// TestUnmarshalEnvNotInitialized tests unmarshalEnv for the correct handling
 // of an exception for a not initialized value.
-func TestUnmarshalENVNotInitialized(t *testing.T) {
-	type data struct{}
-	var d *data
-	if err := unmarshalENV("", d); err == nil {
+func TestUnmarshalEnvNotInitialized(t *testing.T) {
+	var d *struct{}
+	if err := unmarshalEnv("", d); err == nil {
 		t.Error("an error is expected for not initialized value")
 	}
 }
 
-// TestUnmarshalENVNotStruct tests unmarshalENV for the correct handling
+// TestUnmarshalEnvNotStruct tests unmarshalEnv for the correct handling
 // of an exception for a value that isn't a struct.
-func TestUnmarshalENVNotStruct(t *testing.T) {
-	var d = new(int)
-	if err := unmarshalENV("", d); err == nil {
+func TestUnmarshalEnvNotStruct(t *testing.T) {
+	if err := unmarshalEnv("", new(int)); err == nil {
 		t.Error("an error is expected for a pointer not to a struct")
 	}
 }
 
-// TestUnmarshalENVCustom tests unmarshalENV function
-// with custom UnmarshalENV method.
-func TestUnmarshalENVCustom(t *testing.T) {
+// TestUnmarshalEnvCustom tests unmarshalEnv function
+// with custom UnmarshalEnv method.
+func TestUnmarshalEnvCustom(t *testing.T) {
 	var (
-		c     = &dataUnmarshalENV{}
+		c     = &config{}
 		err   error
 		tests = [][]string{
 			{"HOST", "0.0.0.1"},
@@ -75,7 +73,7 @@ func TestUnmarshalENVCustom(t *testing.T) {
 		}
 	}
 
-	err = unmarshalENV("", c)
+	err = unmarshalEnv("", c)
 	if err != nil {
 		t.Error(err)
 	}
@@ -95,8 +93,8 @@ func TestUnmarshalENVCustom(t *testing.T) {
 	}
 }
 
-// TestUnmarshalENVNumbers tests unmarshalENV for Int, Uint and Float types.
-func TestUnmarshalENVNumbers(t *testing.T) {
+// TestUnmarshalEnvNumbers tests unmarshalEnv for Int, Uint and Float types.
+func TestUnmarshalEnvNumbers(t *testing.T) {
 	type data struct {
 		KeyInt     int     `env:"KEY_INT"`
 		KeyInt8    int8    `env:"KEY_INT8"`
@@ -132,21 +130,17 @@ func TestUnmarshalENVNumbers(t *testing.T) {
 
 	// Testing.
 	for i := 0; i < 3; i++ {
-		var err error
 		for key, value := range tests {
 			var d = &data{}
 
 			// Set test data.
-			Clear()
-			err = Set(key, value[i])
-			if err != nil {
+			os.Clearenv()
+			if err := os.Setenv(key, value[i]); err != nil {
 				t.Error(err)
 			}
 
 			// Unmarshaling.
-			err = unmarshalENV("", d)
-
-			// Check error of the unmarshalling.
+			err := unmarshalEnv("", d)
 			switch i {
 			case 0: // the value is correct for all types
 				// Should not cause an error.
@@ -185,8 +179,8 @@ func TestUnmarshalENVNumbers(t *testing.T) {
 	}
 }
 
-// TestUnmarshalENVBoll tests unmarshalENV function for bool types.
-func TestUnmarshalENVBool(t *testing.T) {
+// TestUnmarshalEnvBoll tests unmarshalEnv function for bool types.
+func TestUnmarshalEnvBool(t *testing.T) {
 	type data struct {
 		KeyBool bool `env:"KEY_BOOL"`
 	}
@@ -225,7 +219,7 @@ func TestUnmarshalENVBool(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV("", d)
+		err = unmarshalEnv("", d)
 		if err != nil {
 			t.Error(err)
 		}
@@ -248,15 +242,15 @@ func TestUnmarshalENVBool(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV("", d)
+		err = unmarshalEnv("", d)
 		if err == nil {
 			t.Error("didn't handle the error")
 		}
 	}
 }
 
-// TestUnmarshalENVString tests unmarshalENV function for string type.
-func TestUnmarshalENVString(t *testing.T) {
+// TestUnmarshalEnvString tests unmarshalEnv function for string type.
+func TestUnmarshalEnvString(t *testing.T) {
 	type data struct {
 		KeyString string `env:"KEY_STRING"`
 	}
@@ -283,7 +277,7 @@ func TestUnmarshalENVString(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV("", d)
+		err = unmarshalEnv("", d)
 		if err != nil {
 			t.Error(err)
 		}
@@ -294,28 +288,28 @@ func TestUnmarshalENVString(t *testing.T) {
 	}
 }
 
-// TestUnmarshalENVSlice tests unmarshalENV function for slice.
-func TestUnmarshalENVSlice(t *testing.T) {
+// TestUnmarshalEnvSlice tests unmarshalEnv function for slice.
+func TestUnmarshalEnvSlice(t *testing.T) {
 	// Use `#` as separator for items.
 	type data struct {
-		KeyInt   []int   `env:"KEY_INT,,#"`
-		KeyInt8  []int8  `env:"KEY_INT8,,#"`
-		KeyInt16 []int16 `env:"KEY_INT16,,#"`
-		KeyInt32 []int32 `env:"KEY_INT32,,#"`
-		KeyInt64 []int64 `env:"KEY_INT64,,#"`
+		KeyInt   []int   `env:"KEY_INT" sep:"#"`
+		KeyInt8  []int8  `env:"KEY_INT8" sep:"#"`
+		KeyInt16 []int16 `env:"KEY_INT16" sep:"#"`
+		KeyInt32 []int32 `env:"KEY_INT32" sep:"#"`
+		KeyInt64 []int64 `env:"KEY_INT64" sep:"#"`
 
-		KeyUint   []uint   `env:"KEY_UINT,,#"`
-		KeyUint8  []uint8  `env:"KEY_UINT8,,#"`
-		KeyUint16 []uint16 `env:"KEY_UINT16,,#"`
-		KeyUint32 []uint32 `env:"KEY_UINT32,,#"`
-		KeyUint64 []uint64 `env:"KEY_UINT64,,#"`
+		KeyUint   []uint   `env:"KEY_UINT" sep:"#"`
+		KeyUint8  []uint8  `env:"KEY_UINT8" sep:"#"`
+		KeyUint16 []uint16 `env:"KEY_UINT16" sep:"#"`
+		KeyUint32 []uint32 `env:"KEY_UINT32" sep:"#"`
+		KeyUint64 []uint64 `env:"KEY_UINT64" sep:"#"`
 
-		KeyFloat32 []float32 `env:"KEY_FLOAT32,,#"`
-		KeyFloat64 []float64 `env:"KEY_FLOAT64,,#"`
+		KeyFloat32 []float32 `env:"KEY_FLOAT32" sep:"#"`
+		KeyFloat64 []float64 `env:"KEY_FLOAT64" sep:"#"`
 
-		KeyString []string `env:"KEY_STRING,,#"`
-		KeyGroup  []string `env:"KEY_GROUP,,#"`
-		KeyBool   []bool   `env:"KEY_BOOL,,#"`
+		KeyString []string `env:"KEY_STRING" sep:"#"`
+		KeyGroup  []string `env:"KEY_GROUP" sep:"#"`
+		KeyBool   []bool   `env:"KEY_BOOL" sep:"#"`
 	}
 
 	var (
@@ -370,7 +364,7 @@ func TestUnmarshalENVSlice(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV("", d)
+		err = unmarshalEnv("", d)
 		if err != nil {
 			t.Error(err)
 		}
@@ -404,23 +398,23 @@ func TestUnmarshalENVSlice(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV("", d)
+		err = unmarshalEnv("", d)
 		if err == nil {
 			t.Error("must be error for", value)
 		}
 	}
 }
 
-// TestUnmarshalENVArray tests unmarshalENV function with array.
-func TestUnmarshalENVArray(t *testing.T) {
+// TestUnmarshalEnvArray tests unmarshalEnv function with array.
+func TestUnmarshalEnvArray(t *testing.T) {
 	// Use default separator for items (i.e. `:` symbol).
 	type data struct {
-		KeyInt     [5]int     `env:"KEY_INT"`
-		KeyUint    [4]uint    `env:"KEY_UINT"`
-		KeyFloat64 [5]float64 `env:"KEY_FLOAT64"`
-		KeyString  [5]string  `env:"KEY_STRING"`
-		KeyGroup   [4]string  `env:"KEY_GROUP"`
-		KeyBool    [8]bool    `env:"KEY_BOOL"`
+		KeyInt     [5]int     `env:"KEY_INT" sep:":"`
+		KeyUint    [4]uint    `env:"KEY_UINT" sep:":"`
+		KeyFloat64 [5]float64 `env:"KEY_FLOAT64" sep:":"`
+		KeyString  [5]string  `env:"KEY_STRING" sep:":"`
+		KeyGroup   [4]string  `env:"KEY_GROUP" sep:":"`
+		KeyBool    [8]bool    `env:"KEY_BOOL" sep:":"`
 	}
 
 	var (
@@ -448,19 +442,14 @@ func TestUnmarshalENVArray(t *testing.T) {
 
 	// Test correct values.
 	for key, value := range corretc {
-		var (
-			d   = &data{}
-			err error
-		)
+		var d = &data{}
 
-		Clear()
-		err = Set(key, value)
-		if err != nil {
+		os.Clearenv()
+		if err := os.Setenv(key, value); err != nil {
 			t.Error(err)
 		}
 
-		err = unmarshalENV("", d)
-		if err != nil {
+		if err := unmarshalEnv("", d); err != nil {
 			t.Error(err)
 		}
 
@@ -492,7 +481,7 @@ func TestUnmarshalENVArray(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV("", d)
+		err = unmarshalEnv("", d)
 		if err == nil {
 			t.Error("There should be an exception due to an invalid value.")
 		}
@@ -511,22 +500,22 @@ func TestUnmarshalENVArray(t *testing.T) {
 			t.Error(err)
 		}
 
-		err = unmarshalENV("", d)
+		err = unmarshalEnv("", d)
 		if err == nil {
 			t.Error("There should be an exception due to array overflow.")
 		}
 	}
 }
 
-// TestUnmarshalURL tests unmarshalENV for url.URL type.
+// TestUnmarshalURL tests unmarshalEnv for url.URL type.
 func TestUnmarshalURL(t *testing.T) {
 	type data struct {
 		KeyURLPlain      url.URL     `env:"KEY_URL_PLAIN"`
 		KeyURLPoint      *url.URL    `env:"KEY_URL_POINT"`
-		KeyURLPlainSlice []url.URL   `env:"KEY_URL_PLAIN_SLICE,,!"`
-		KeyURLPointSlice []*url.URL  `env:"KEY_URL_POINT_SLICE,,!"`
-		KeyURLPlainArray [2]url.URL  `env:"KEY_URL_PLAIN_ARRAY,,!"`
-		KeyURLPointArray [2]*url.URL `env:"KEY_URL_POINT_ARRAY,,!"`
+		KeyURLPlainSlice []url.URL   `env:"KEY_URL_PLAIN_SLICE" sep:"!"`
+		KeyURLPointSlice []*url.URL  `env:"KEY_URL_POINT_SLICE" sep:"!"`
+		KeyURLPlainArray [2]url.URL  `env:"KEY_URL_PLAIN_ARRAY" sep:"!"`
+		KeyURLPointArray [2]*url.URL `env:"KEY_URL_POINT_ARRAY" sep:"!"`
 	}
 
 	var (
@@ -572,7 +561,7 @@ func TestUnmarshalURL(t *testing.T) {
 	}
 
 	// Unmarshaling.
-	err = unmarshalENV("", &d)
+	err = unmarshalEnv("", &d)
 	if err != nil {
 		t.Error(err)
 	}
@@ -629,7 +618,7 @@ func TestUnmarshalURL(t *testing.T) {
 	}
 }
 
-// TestUnmarshalStruct tests unmarshalENV for the struct.
+// TestUnmarshalStruct tests unmarshalEnv for the struct.
 func TestUnmarshalStruct(t *testing.T) {
 	type Address struct {
 		Country string `env:"COUNTRY"`
@@ -663,7 +652,7 @@ func TestUnmarshalStruct(t *testing.T) {
 	}
 
 	// Unmarshaling.
-	err = unmarshalENV("", &c)
+	err = unmarshalEnv("", &c)
 	if err != nil {
 		t.Error("Incorrect ummarshaling.")
 	}
@@ -682,7 +671,7 @@ func TestUnmarshalStruct(t *testing.T) {
 	}
 }
 
-// TestUnmarshalStructPtr tests unmarshalENV for the pointerf of the struct.
+// TestUnmarshalStructPtr tests unmarshalEnv for the pointerf of the struct.
 func TestUnmarshalStructPtr(t *testing.T) {
 	type Address struct {
 		Country string `env:"COUNTRY"`
@@ -716,7 +705,7 @@ func TestUnmarshalStructPtr(t *testing.T) {
 	}
 
 	// Unmarshaling.
-	err = unmarshalENV("", &c)
+	err = unmarshalEnv("", &c)
 	if err != nil {
 		t.Error("Incorrect ummarshaling.")
 	}
@@ -735,9 +724,9 @@ func TestUnmarshalStructPtr(t *testing.T) {
 	}
 }
 
-// TestUnmarshalENVStringPtr tests unmarshalENV function
+// TestUnmarshalEnvStringPtr tests unmarshalEnv function
 // for pointer on the string type.
-func TestUnmarshalENVStringPtr(t *testing.T) {
+func TestUnmarshalEnvStringPtr(t *testing.T) {
 	type data struct {
 		KeyString *string `env:"KEY_STRING"`
 	}
@@ -753,7 +742,7 @@ func TestUnmarshalENVStringPtr(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = unmarshalENV("", &d)
+	err = unmarshalEnv("", &d)
 	if err != nil {
 		t.Error(err)
 	}
@@ -764,12 +753,12 @@ func TestUnmarshalENVStringPtr(t *testing.T) {
 
 }
 
-// TestUnmarshalDefaultValue tests unmarshalENV for default value.
+// TestUnmarshalDefaultValue tests unmarshalEnv for default value.
 func TestUnmarshalDefaultValue(t *testing.T) {
 	type data struct {
-		Host         string    `env:"HOST,0.0.0.0"`
-		AllowedHosts []string  `env:"ALLOWED_HOSTS,{localhost:0.0.0.0},:"`
-		Names        [3]string `env:"NAME_LIST,'John,Bob,Smit',,"` // sep `,`
+		Host         string    `env:"HOST" def:"0.0.0.0"`
+		AllowedHosts []string  `env:"ALLOWED_HOSTS" def:"localhost:0.0.0.0" sep:":"`
+		Names        [3]string `env:"NAME_LIST" def:"John,Bob,Smit" sep:","`
 	}
 
 	var (
@@ -786,7 +775,7 @@ func TestUnmarshalDefaultValue(t *testing.T) {
 
 	// Unmarshaling wit default values.
 	d = data{}
-	err = unmarshalENV("", &d)
+	err = unmarshalEnv("", &d)
 	if err != nil {
 		t.Error("Incorrect ummarshaling.")
 	}
@@ -813,7 +802,7 @@ func TestUnmarshalDefaultValue(t *testing.T) {
 
 	// Unmarshaling wit environment values.
 	d = data{}
-	err = unmarshalENV("", &d)
+	err = unmarshalEnv("", &d)
 	if err != nil {
 		t.Error("Incorrect ummarshaling.")
 	}
