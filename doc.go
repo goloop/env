@@ -1,5 +1,5 @@
-// Package env implements various methods which allow save environment
-// variables to a GoLang structures.
+// Package env implements various methods that allow storing
+// environment variables in GoLang structures.
 package env
 
 const version = "1.0.0"
