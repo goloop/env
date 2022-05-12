@@ -78,19 +78,19 @@ func unmarshalEnv(prefix string, obj interface{}) error {
 		// }
 
 		// ...
-		key := strings.Trim(field.Tag.Get(keyTagName), " ")
+		key := strings.Trim(field.Tag.Get(tagNameKey), " ")
 		if key == "" {
 			key = field.Name
 		}
 
-		sep := field.Tag.Get(sepTagName)
+		sep := field.Tag.Get(tagNameSep)
 		if sep == "" {
-			sep = defSepValue
+			sep = defValueSep
 		}
 
 		tg := &tagGroup{
 			key:   fmt.Sprintf("%s%s", prefix, key),
-			value: field.Tag.Get(valueTagName),
+			value: field.Tag.Get(tagNameValue),
 			sep:   sep,
 		}
 
