@@ -9,14 +9,14 @@ import (
 )
 
 // The config structure with custom UnmarshalEnv method.
-type config struct {
+type configDecode struct {
 	Host         string   `env:"HOST"`
 	Port         int      `env:"PORT"`
-	AllowedHosts []string `env:"ALLOWED_HOSTS,:"`
+	AllowedHosts []string `env:"ALLOWED_HOSTS" sep:":"`
 }
 
 // UnmarshalEnv the custom method for unmarshalling data from the environment.
-func (c *config) UnmarshalEnv() error {
+func (c *configDecode) UnmarshalEnv() error {
 	// You can use different methods to get data from the environment
 	// like os.Getenv or env.Get and process the result according
 	// to custom requirements.
@@ -55,7 +55,7 @@ func TestUnmarshalEnvNotStruct(t *testing.T) {
 // with custom UnmarshalEnv method.
 func TestUnmarshalEnvCustom(t *testing.T) {
 	var (
-		c     = &config{}
+		c     = &configDecode{}
 		err   error
 		tests = [][]string{
 			{"HOST", "0.0.0.1"},
@@ -483,7 +483,7 @@ func TestUnmarshalEnvArray(t *testing.T) {
 
 		err = unmarshalEnv("", d)
 		if err == nil {
-			t.Error("There should be an exception due to an invalid value.")
+			t.Error("there should be an exception due to an invalid value")
 		}
 	}
 
@@ -502,7 +502,7 @@ func TestUnmarshalEnvArray(t *testing.T) {
 
 		err = unmarshalEnv("", d)
 		if err == nil {
-			t.Error("There should be an exception due to array overflow.")
+			t.Error("there should be an exception due to array overflow")
 		}
 	}
 }
@@ -568,11 +568,11 @@ func TestUnmarshalURL(t *testing.T) {
 
 	// Tests results.
 	if v := d.KeyURLPlain.String(); v != "http://plain.goloop.one" {
-		t.Errorf("Incorrect unmarshaling plain url.URL: %s", v)
+		t.Errorf("incorrect unmarshaling plain url.URL: %s", v)
 	}
 
 	if v := d.KeyURLPoint.String(); v != "http://point.goloop.one" {
-		t.Errorf("Incorrect unmarshaling point url.URL: %s", v)
+		t.Errorf("incorrect unmarshaling point url.URL: %s", v)
 	}
 
 	// Plain slice.
@@ -582,7 +582,7 @@ func TestUnmarshalURL(t *testing.T) {
 	}
 	str = strings.Trim(strings.Replace(fmt.Sprint(slice), " ", "!", -1), "[]")
 	if str != "http://a.plain.goloop.one!http://b.plain.goloop.one" {
-		t.Errorf("Incorrect unmarshaling plain slice []url.URL: %s", str)
+		t.Errorf("incorrect unmarshaling plain slice []url.URL: %s", str)
 	}
 
 	// Point slice.
@@ -592,7 +592,7 @@ func TestUnmarshalURL(t *testing.T) {
 	}
 	str = strings.Trim(strings.Replace(fmt.Sprint(slice), " ", "!", -1), "[]")
 	if str != "http://a.point.goloop.one!http://b.point.goloop.one" {
-		t.Errorf("Incorrect unmarshaling point alice []*url.URL: %s", str)
+		t.Errorf("incorrect unmarshaling point alice []*url.URL: %s", str)
 	}
 
 	// Plain array.
@@ -603,7 +603,7 @@ func TestUnmarshalURL(t *testing.T) {
 
 	str = strings.Trim(strings.Replace(fmt.Sprint(slice), " ", "!", -1), "[]")
 	if str != "http://c.plain.goloop.one!http://d.plain.goloop.one" {
-		t.Errorf("Incorrect unmarshaling plain array [2]url.URL: %s", str)
+		t.Errorf("incorrect unmarshaling plain array [2]url.URL: %s", str)
 	}
 
 	// Point array.
@@ -614,7 +614,7 @@ func TestUnmarshalURL(t *testing.T) {
 
 	str = strings.Trim(strings.Replace(fmt.Sprint(slice), " ", "!", -1), "[]")
 	if str != "http://c.point.goloop.one!http://d.point.goloop.one" {
-		t.Errorf("Incorrect unmarshaling point array [2]*url.URL: %s", str)
+		t.Errorf("incorrect unmarshaling point array [2]*url.URL: %s", str)
 	}
 }
 
@@ -654,16 +654,16 @@ func TestUnmarshalStruct(t *testing.T) {
 	// Unmarshaling.
 	err = unmarshalEnv("", &c)
 	if err != nil {
-		t.Error("Incorrect ummarshaling.")
+		t.Error("incorrect ummarshaling")
 	}
 
 	// Tests.
 	if c.User.Address.Country != "UK" {
-		t.Errorf("Incorrect ummarshaling User.Address: %v", c.User.Address)
+		t.Errorf("incorrect ummarshaling User.Address: %v", c.User.Address)
 	}
 
 	if c.User.Name != "Jerry" {
-		t.Errorf("Incorrect ummarshaling User: %v", c.User)
+		t.Errorf("incorrect ummarshaling User: %v", c.User)
 	}
 
 	if c.HomePage.String() != "http://example.org" {
@@ -707,20 +707,20 @@ func TestUnmarshalStructPtr(t *testing.T) {
 	// Unmarshaling.
 	err = unmarshalEnv("", &c)
 	if err != nil {
-		t.Error("Incorrect ummarshaling.")
+		t.Error("incorrect ummarshaling")
 	}
 
 	// Tests.
 	if c.User.Address.Country != "UA" {
-		t.Errorf("Incorrect ummarshaling User.Address: %v", c.User.Address)
+		t.Errorf("incorrect ummarshaling User.Address: %v", c.User.Address)
 	}
 
 	if c.User.Name != "Lucy" {
-		t.Errorf("Incorrect ummarshaling User: %v", c.User)
+		t.Errorf("incorrect ummarshaling User: %v", c.User)
 	}
 
 	if c.HomePage.String() != "http://example.net" {
-		t.Errorf("Incorrect ummarshaling url.URL: %v", c.HomePage)
+		t.Errorf("incorrect ummarshaling url.URL: %v", c.HomePage)
 	}
 }
 
@@ -777,7 +777,7 @@ func TestUnmarshalDefaultValue(t *testing.T) {
 	d = data{}
 	err = unmarshalEnv("", &d)
 	if err != nil {
-		t.Error("Incorrect ummarshaling.")
+		t.Error("incorrect ummarshaling")
 	}
 
 	if d.Host != "0.0.0.0" {
@@ -804,18 +804,44 @@ func TestUnmarshalDefaultValue(t *testing.T) {
 	d = data{}
 	err = unmarshalEnv("", &d)
 	if err != nil {
-		t.Error("Incorrect ummarshaling.")
+		t.Error("incorrect ummarshaling")
 	}
 
 	if d.Host == "0.0.0.0" {
-		t.Errorf("Host sets as default %s", d.Host)
+		t.Errorf("host sets as default %s", d.Host)
 	}
 
 	if sts(d.AllowedHosts, ":") == "localhost:0.0.0.0" {
-		t.Errorf("AllowedHosts sets as default %s", d.AllowedHosts)
+		t.Errorf("allowedHosts sets as default %s", d.AllowedHosts)
 	}
 
 	if sts(d.Names, ":") == "John:Bob:Smit" {
-		t.Errorf("Names setas as default %s", d.Names)
+		t.Errorf("names setas as default %s", d.Names)
+	}
+}
+
+// TestMarshalMultiService tests marshaling of the
+// data to environment by the specified prefix.
+func TestMarshalMultiService(t *testing.T) {
+	type server struct {
+		Name string `env:"NAME"`
+		Host string `env:"HOST"`
+		Port int    `env:"PORT"`
+	}
+
+	var (
+		serverA = server{Name: "A"}
+		serverB = server{Name: "B"}
+	)
+
+	Marshal("SERVICE_A_", serverA)
+	Marshal("SERVICE_B_", serverB)
+
+	if v := os.Getenv("SERVICE_A_NAME"); v != "A" {
+		t.Errorf("expected `A` but `%s`", v)
+	}
+
+	if v := os.Getenv("SERVICE_B_NAME"); v != "B" {
+		t.Errorf("expected `B` but `%s`", v)
 	}
 }
