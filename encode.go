@@ -49,11 +49,12 @@ func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
 	if ptr.Type().Implements(reflect.TypeOf((*Marshaler)(nil)).Elem()) {
 		// Try to run custom MarshalEnv function.
 		if m := ptr.MethodByName("MarshalEnv"); m.IsValid() {
-			tmp := m.Call([]reflect.Value{})
-			value := tmp[0].Interface()
+			tmp := m.Call([]reflect.Value{}) // len == 2
 			if err := tmp[1].Interface(); err != nil {
 				return result, fmt.Errorf("custom marshal method: %v", err)
 			}
+
+			value := tmp[0].Interface()
 			return value.([]string), nil
 		}
 	}
@@ -63,17 +64,20 @@ func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
 	for i := 0; i < rv.NumField(); i++ {
 		field := rt.Field(i)
 
-		// ...
+		// Get parameters from tags.
+		// The name of the key.
 		key := strings.Trim(field.Tag.Get(tagNameKey), " ")
 		if key == "" {
 			key = field.Name
 		}
 
+		// Separator value for slices/arrays.
 		sep := field.Tag.Get(tagNameSep)
 		if sep == "" {
 			sep = defValueSep
 		}
 
+		// Create tag group.
 		tg := &tagGroup{
 			key:   key,
 			value: field.Tag.Get(tagNameValue),

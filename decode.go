@@ -54,11 +54,10 @@ func unmarshalEnv(prefix string, obj interface{}) error {
 	// try to calling a custom Unmarshal method.
 	if e.Type().Implements(reflect.TypeOf((*Unmarshaler)(nil)).Elem()) {
 		if m := e.MethodByName("UnmarshalEnv"); m.IsValid() {
-			tmp := m.Call([]reflect.Value{})
+			tmp := m.Call([]reflect.Value{}) // len == 1
 			if err := tmp[0].Interface(); err != nil {
 				return fmt.Errorf("%v", err)
 			}
-
 			return nil
 		}
 	}
@@ -69,25 +68,20 @@ func unmarshalEnv(prefix string, obj interface{}) error {
 	for i := 0; i < elem.NumField(); i++ {
 		field := t.Elem().Field(i)
 
-		// Parse tag arguments of the field.
-		// args := getTagArgs(field.Tag.Get("env"), field.Name)
-		// if !args.IsValid() {
-		// 	return fmt.Errorf("invalid key name: %s", args.Key)
-		// } else if args.IsIgnored() {
-		// 	continue
-		// }
-
-		// ...
+		// Get parameters from tags.
+		// The name of the key.
 		key := strings.Trim(field.Tag.Get(tagNameKey), " ")
 		if key == "" {
 			key = field.Name
 		}
 
+		// Separator value for slices/arrays.
 		sep := field.Tag.Get(tagNameSep)
 		if sep == "" {
 			sep = defValueSep
 		}
 
+		// Create tag group.
 		tg := &tagGroup{
 			key:   fmt.Sprintf("%s%s", prefix, key),
 			value: field.Tag.Get(tagNameValue),

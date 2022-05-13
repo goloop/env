@@ -1,6 +1,7 @@
 package env
 
 import (
+	"fmt"
 	"os"
 	"testing"
 )
@@ -122,5 +123,39 @@ func TestExist(t *testing.T) {
 	// Variables doesn't exists.
 	if Exists("KEY_2") || Exists("KEY_0", "KEY_1", "KEY_2") {
 		t.Error("expected value `false` but `true`")
+	}
+}
+
+// TestSave tests Save function.
+func TestSave(t *testing.T) {
+	var data = struct {
+		Host string `env:"HOST"`
+		Port int    `env:"PORT"`
+	}{
+		Host: "localhost",
+		Port: 8080,
+	}
+
+	// Save object.
+	os.Clearenv()
+	Save("/tmp/.env", "", data)
+
+	// Not chanage environment.
+	if h, p := os.Getenv("HOST"), os.Getenv("PORT"); h != "" || p != "" {
+		t.Error("doesn't have to change the environment")
+	}
+
+	// Load object.
+	if err := Load("/tmp/.env"); err != nil {
+		t.Error(err)
+	}
+
+	h, p := os.Getenv("HOST"), os.Getenv("PORT")
+	if h != data.Host {
+		t.Errorf("expected `%s` but `%s`", data.Host, h)
+	}
+
+	if p != fmt.Sprint(data.Port) {
+		t.Errorf("expected `%d` but `%s`", data.Port, fmt.Sprint(data.Port))
 	}
 }

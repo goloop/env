@@ -1,6 +1,7 @@
 package env
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -8,7 +9,7 @@ import (
 	"testing"
 )
 
-// The config structure with custom UnmarshalEnv method.
+// The configDecode structure with custom UnmarshalEnv method.
 type configDecode struct {
 	Host         string   `env:"HOST"`
 	Port         int      `env:"PORT"`
@@ -26,11 +27,67 @@ func (c *configDecode) UnmarshalEnv() error {
 	return nil
 }
 
+// The configDecodeErr structure with custom UnmarshalEnv method with error.
+type configDecodeErr struct{}
+
+// UnmarshalEnv the custom method for unmarshalling - always returns an error.
+func (c *configDecodeErr) UnmarshalEnv() error {
+	return errors.New("error message")
+}
+
+// TestUnmarshalEnvNil tests unmarshalEnv for nil object.
+func TestUnmarshalEnvNil(t *testing.T) {
+	if err := unmarshalEnv("", nil); err == nil {
+		t.Error("an error is expected for nil object")
+	}
+}
+
+// TestUnmarshalEnvCustomUnmarshalErr tests custom unmarshalEnv with error.
+func TestUnmarshalEnvCustomUnmarshalErr(t *testing.T) {
+	var data = configDecodeErr{}
+	if err := unmarshalEnv("", &data); err == nil {
+		t.Error("an error is expected for nil object")
+	}
+}
+
+// TestUnmarshalEnvDefaultKeyName tests unmarshalEnv with default key name.
+func TestUnmarshalEnvDefaultKeyName(t *testing.T) {
+	var (
+		expected = "127.0.0.1"
+		data     = struct {
+			Host string
+		}{
+			Host: "localhost",
+		}
+	)
+
+	os.Clearenv()
+	os.Setenv("Host", expected)
+	if err := unmarshalEnv("", &data); err != nil {
+		t.Error(err)
+	}
+
+	if data.Host != expected {
+		t.Errorf("expected `%s` but `%v`", expected, data.Host)
+	}
+}
+
+// TestUnmarshalEnvInvalidKey tests unmarshalEnv with invalid key name.
+func TestUnmarshalEnvInvalidKey(t *testing.T) {
+	var data = struct {
+		Host string `env:"HO$T"`
+	}{}
+
+	if err := unmarshalEnv("", &data); err == nil {
+		t.Error("there must be an error for the invalid key name")
+	}
+}
+
 // TestUnmarshalEnvNotPointer tests unmarshalEnv for the correct handling
 // of an exception for a non-pointer value.
 func TestUnmarshalEnvNotPointer(t *testing.T) {
 	if err := unmarshalEnv("", struct{}{}); err == nil {
-		t.Error("an error is expected for no-pointer value")
+		t.Error("an error is expected for no-pointer object")
 	}
 }
 
@@ -39,7 +96,7 @@ func TestUnmarshalEnvNotPointer(t *testing.T) {
 func TestUnmarshalEnvNotInitialized(t *testing.T) {
 	var d *struct{}
 	if err := unmarshalEnv("", d); err == nil {
-		t.Error("an error is expected for not initialized value")
+		t.Error("an error is expected for not initialized object")
 	}
 }
 
