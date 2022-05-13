@@ -175,6 +175,7 @@ func readParseStore(filename string, expand, update, forced bool) (err error) {
 	defer file.Close()
 
 	// Parse file.
+	// TODO: use goroutines.
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		// Get current line and ignore empty string or comments.
