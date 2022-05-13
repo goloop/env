@@ -106,7 +106,7 @@ func main() {
 	var a, b config
 
 	// Update the environment.
-	if err := env.Update("./cmd/.env"); err != nil {
+	if err := env.Update(".env"); err != nil {
 		log.Fatal(err)
 	}
 
@@ -195,7 +195,7 @@ func main() {
 	// Note: We use the Load (but not Update) method for as not to overwrite
 	// the data in the environment because on the production server this
 	// data can be set forcibly.
-	env.Load("./cmd/.env")
+	env.Load(".env")
 	env.Unmarshal("", &config)
 
 	// Make routing.
@@ -471,6 +471,39 @@ marshaling.
     //  Host: 192.168.0.1
     //  Port: 80
     //  AllowedHosts: 192.168.0.1
+
+#### func  Save
+
+    func Save(filename, prefix string, obj interface{}) error
+
+Save saves the object to a file without changing the environment.
+
+
+Example
+
+There is some configuration structure:
+
+    // Config it's struct of the server configuration.
+    type Config struct {
+    	Host         string   `env:"HOST"`
+    	Port         int      `env:"PORT"`
+    	AllowedHosts []string `env:"ALLOWED_HOSTS" sep:":"` // parse by `:`.
+    }
+
+...
+
+    var config = Config{
+    	Host:         "localhost",
+    	Port:         8080,
+    	AllowedHosts: []string{"localhost", "127.0.0.1"},
+    }
+    env.Save("/tmp/.env", "", config)
+
+The result in the file /tmp/.env
+
+    HOST=localhost
+    PORT=8080
+    ALLOWED_HOSTS=localhost:127.0.0.1
 
 #### func  Set
 
