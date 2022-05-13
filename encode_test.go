@@ -1,6 +1,7 @@
 package env
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -35,6 +36,54 @@ func (c *configEncode) MarshalEnv() ([]string, error) {
 		"PORT=80",
 		"ALLOWED_HOSTS=localhost",
 	}, nil
+}
+
+// The configEncodeErr structure with custom MarshalEnv method with error.
+type configEncodeErr struct{}
+
+// MarshalEnv the custom method for marshalling - always returns an error.
+func (c *configEncodeErr) MarshalEnv() ([]string, error) {
+	return []string{}, errors.New("error message")
+}
+
+// TestUnmarshalEnvCustomMarshalErr tests custom marshalEnv with error.
+func TestUnmarshalEnvCustomMarshalErr(t *testing.T) {
+	var data = configEncodeErr{}
+	if _, err := marshalEnv("", data, false); err == nil {
+		t.Error("an error is expected for nil object")
+	}
+}
+
+// TestMarshalEnvDefaultKeyName tests marshalEnv with default key name.
+func TestMarshalEnvDefaultKeyName(t *testing.T) {
+	var (
+		expected = "127.0.0.1"
+		data     = struct {
+			Host string
+		}{
+			Host: expected,
+		}
+	)
+
+	os.Clearenv()
+	if _, err := marshalEnv("", data, false); err != nil {
+		t.Error(err)
+	}
+
+	if v := os.Getenv("Host"); v != expected {
+		t.Errorf("expected `%s` but `%v`", v, expected)
+	}
+}
+
+// TestMarshalEnvInvalidKey tests marshalEnv with invalid key name.
+func TestMarshalEnvInvalidKey(t *testing.T) {
+	var data = struct {
+		Host string `env:"HO$T"`
+	}{}
+
+	if _, err := marshalEnv("", data, false); err == nil {
+		t.Error("there must be an error for the invalid key name")
+	}
 }
 
 // TestMarshalEnvNilPointer tests marshalEnv function
