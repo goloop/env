@@ -1,6 +1,7 @@
 package env
 
 import (
+	"bytes"
 	"os"
 	"regexp"
 )
@@ -232,6 +233,49 @@ func UpdateSafe(filename string) error {
 	return readParseStore(filename, expand, update, forced)
 }
 
+// Save saves the object to a file without changing the environment.
+//
+// Example
+//
+// There is some configuration structure:
+//
+//  // Config it's struct of the server configuration.
+//  type Config struct {
+//  	Host         string   `env:"HOST"`
+//  	Port         int      `env:"PORT"`
+//  	AllowedHosts []string `env:"ALLOWED_HOSTS" sep:":"` // parse by `:`.
+//  }
+//
+// ...
+//
+//  var config = Config{
+//  	Host:         "localhost",
+//  	Port:         8080,
+//  	AllowedHosts: []string{"localhost", "127.0.0.1"},
+//  }
+//  env.Save("/tmp/.env", "", config)
+//
+// The result in the file /tmp/.env
+//
+//  HOST=localhost
+//  PORT=8080
+//  ALLOWED_HOSTS=localhost:127.0.0.1
+func Save(filename, prefix string, obj interface{}) error {
+	var result bytes.Buffer
+
+	items, err := marshalEnv(prefix, obj, true) // don't change environment
+	if err != nil {
+		return err
+	}
+
+	for _, item := range items {
+		result.WriteString(item)
+		result.WriteString("\n")
+	}
+
+	return os.WriteFile(filename, result.Bytes(), 0644)
+}
+
 // Exists returns true if all given keys exists in the environment.
 //
 // Examples
@@ -427,5 +471,5 @@ func Unmarshal(prefix string, obj interface{}) error {
 //  //  Port: 80
 //  //  AllowedHosts: 192.168.0.1
 func Marshal(prefix string, scope interface{}) ([]string, error) {
-	return marshalEnv(prefix, scope)
+	return marshalEnv(prefix, scope, false)
 }

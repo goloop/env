@@ -15,6 +15,7 @@ type Marshaler interface {
 }
 
 // The marshalEnv saves object's fields to environment.
+// Changes the environment if idle == false only.
 //
 // Method supports the following field's types: int, int8, int16, int32, int64,
 // uin, uint8, uin16, uint32, in64, float32, float64, string, bool, url.URL
@@ -23,7 +24,7 @@ type Marshaler interface {
 // processed recursively.
 //
 // For other filed's types (like chan, map ...) will be returned an error.
-func marshalEnv(prefix string, obj interface{}) ([]string, error) {
+func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
 	var result []string
 
 	// Note: Convert *object to object and mean that we use
@@ -74,7 +75,7 @@ func marshalEnv(prefix string, obj interface{}) ([]string, error) {
 		}
 
 		tg := &tagGroup{
-			key:   key, //fmt.Sprintf("%s%s", prefix, key),
+			key:   key,
 			value: field.Tag.Get(tagNameValue),
 			sep:   sep,
 		}
@@ -110,7 +111,7 @@ func marshalEnv(prefix string, obj interface{}) ([]string, error) {
 			// Another struct.
 			// Recursive analysis of the nested structure.
 			p := fmt.Sprintf("%s%s_", prefix, tg.key)
-			value, err := marshalEnv(p, item.Interface())
+			value, err := marshalEnv(p, item.Interface(), false)
 			if err != nil {
 				return result, err
 			}
@@ -127,8 +128,11 @@ func marshalEnv(prefix string, obj interface{}) ([]string, error) {
 
 		// Set into environment and add to result list.
 		tg.key = fmt.Sprintf("%s%s", prefix, tg.key)
-		if err := Set(tg.key, tg.value); err != nil {
-			return result, err
+		if !idle {
+			// Changes the environment if idle == false only.
+			if err := Set(tg.key, tg.value); err != nil {
+				return result, err
+			}
 		}
 
 		result = append(result, fmt.Sprintf("%s=%s", tg.key, tg.value))

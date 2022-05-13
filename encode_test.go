@@ -41,7 +41,7 @@ func (c *configEncode) MarshalEnv() ([]string, error) {
 // for uninitialized pointer.
 func TestMarshalEnvNilPointer(t *testing.T) {
 	var data *struct{}
-	if _, err := marshalEnv("", data); err == nil {
+	if _, err := marshalEnv("", data, false); err == nil {
 		t.Error("should be error for an uninitialized object")
 	}
 }
@@ -49,7 +49,7 @@ func TestMarshalEnvNilPointer(t *testing.T) {
 // TestMarshalEnvNotStruct tests marshalEnv function for not struct.
 func TestMarshalNotStruct(t *testing.T) {
 	var data string
-	if _, err := marshalEnv(data, ""); err == nil {
+	if _, err := marshalEnv(data, "", false); err == nil {
 		t.Error("should be error for an object other than structure")
 	}
 }
@@ -70,7 +70,7 @@ func TestMarshalEnv(t *testing.T) {
 
 	// ...
 	os.Clearenv()
-	if _, err := marshalEnv("", data); err != nil {
+	if _, err := marshalEnv("", data, false); err != nil {
 		t.Error(err)
 	}
 
@@ -111,7 +111,7 @@ func TestMarshalEnvPtr(t *testing.T) {
 	}
 
 	os.Clearenv()
-	if _, err := marshalEnv("", data); err != nil {
+	if _, err := marshalEnv("", data, false); err != nil {
 		t.Error(err)
 	}
 
@@ -147,7 +147,7 @@ func TestMarshalEnvCustom(t *testing.T) {
 	}
 
 	os.Clearenv()
-	if _, err := marshalEnv("", data); err != nil {
+	if _, err := marshalEnv("", data, false); err != nil {
 		t.Error(err)
 	}
 
@@ -178,7 +178,7 @@ func TestMarshalEnvCustomPtr(t *testing.T) {
 	}
 
 	os.Clearenv()
-	if _, err := marshalEnv("", scope); err != nil {
+	if _, err := marshalEnv("", scope, false); err != nil {
 		t.Error(err)
 	}
 
@@ -233,7 +233,7 @@ func TestMarshalEnvURL(t *testing.T) {
 	}
 
 	os.Clearenv()
-	if _, err := marshalEnv("", data); err != nil {
+	if _, err := marshalEnv("", data, false); err != nil {
 		t.Error(err)
 	}
 
@@ -303,7 +303,7 @@ func TestMarshalEnvStruct(t *testing.T) {
 
 	// Marshaling.
 	os.Clearenv()
-	_, err := marshalEnv("", data)
+	_, err := marshalEnv("", data, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -353,7 +353,7 @@ func TestMarshalEnvStructPtr(t *testing.T) {
 
 	// Marshaling.
 	os.Clearenv()
-	_, err := marshalEnv("", data)
+	_, err := marshalEnv("", data, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -423,7 +423,7 @@ func TestMarshalEnvNumberPtr(t *testing.T) {
 
 	// ...
 	os.Clearenv()
-	if _, err := marshalEnv("", data); err != nil {
+	if _, err := marshalEnv("", data, false); err != nil {
 		t.Error(err)
 	}
 
@@ -455,7 +455,7 @@ func TestMarshalEnvBoolPtr(t *testing.T) {
 
 	// ...
 	os.Clearenv()
-	if _, err := marshalEnv("", data); err != nil {
+	if _, err := marshalEnv("", data, false); err != nil {
 		t.Error(err)
 	}
 
@@ -478,7 +478,7 @@ func TestMarshalEnvStringPtr(t *testing.T) {
 
 	// ...
 	os.Clearenv()
-	if _, err := marshalEnv("", value); err != nil {
+	if _, err := marshalEnv("", value, false); err != nil {
 		t.Error(err)
 	}
 
@@ -516,7 +516,7 @@ func TestMarshalEnvSlice(t *testing.T) {
 		s           = chunk{KeyInt: keyInt}
 	)
 
-	if _, err := marshalEnv("", s); err != nil {
+	if _, err := marshalEnv("", s, false); err != nil {
 		t.Error(err)
 	}
 }
