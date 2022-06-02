@@ -2,7 +2,7 @@
 // environment variables in GoLang structures.
 package env
 
-const version = "1.0.0"
+const version = "1.0.1"
 
 // Version returns the version of the module.
 func Version() string {
