@@ -3,7 +3,7 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/goloop/env)](https://goreportcard.com/report/github.com/goloop/env) [![License](https://img.shields.io/badge/license-BSD-blue)](https://github.com/goloop/env/blob/master/LICENSE) [![License](https://img.shields.io/badge/godoc-YES-green)](https://godoc.org/github.com/goloop/env)
 
-*Version: v1.0.0*
+*Version: v1.0.1*
 
 # env
 
@@ -51,7 +51,7 @@ PREFIX_KEY_008_LABEL="Service B" # deep embedded field with prefix
 
 # Not supported:
 # .................................................................
-# KEY_009= # empty value without quotes, need to use as: KEY_008=''
+# KEY_009= # empty value without quotes, need to use as: KEY_009=''
 # 010_KEY=5 # incorrect variable name (name cannot starts with a digit)
 # KEY_011="broken value, for example hasn't closing quote of the end
 ```
