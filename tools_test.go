@@ -23,7 +23,7 @@ func TestSts(t *testing.T) {
 	}
 
 	for i, s := range tests {
-		if r := sts(s.value, s.sep); r != s.result {
+		if r, _ := sts(s.value, s.sep); r != s.result {
 			t.Errorf("test %d is failed, expected %v but %v", i, s.result, r)
 		}
 	}
@@ -264,8 +264,11 @@ func TestSplitN(t *testing.T) {
 	}
 
 	for i, s := range tests {
-		if r := splitN(s.value, ",", s.n); sts(r, ":") != sts(s.result, ":") {
-			t.Errorf("test %d is failed, expected %v but %v", i, s.result, r)
+        tmp := splitN(s.value, ",", s.n);
+        r1, _ := sts(tmp, ":")
+        r2, _ := sts(s.result, ":")
+		if r1 != r2  {
+			t.Errorf("test %d is failed, expected %v but %v", i, s.result, r1)
 		}
 	}
 }

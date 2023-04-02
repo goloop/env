@@ -2,45 +2,56 @@ package env
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
+	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
-// The sts converts a slice of any type to a string. If pass a value
-// other than a slice or array, an empty string will be returned.
+// The sts converts a sequence (slice or array) of any type to a string.
+// If the value is not a slice or array, an error message will be returned.
+//
+// The second argument to the function specifies the separator to be
+// inserted between the elements of the sequence in the result string.
+//
+// Examples:
+//
+//	sts([]int{1, 2, 3}, ",")          // "1,2,3"
+//	sts([]string{"1", "2", "3"}, ";") // "1;2;3"
 //
 // Note: This function is not used as an env function subsystem,
 // it is only used to test package functions.
-//
-// Examples:
-//   sts([]int{1,2,3}, ",") // "1,2,3"
-//   sts([]string{"1", "2", "3"}, ",") // "1,2,3"
-func sts(slice interface{}, sep string) string {
-	var result string
+func sts(seq interface{}, sep string) (string, error) {
+	// Create a string builder to concatenate strings.
+	var sb strings.Builder
 
-	switch reflect.TypeOf(slice).Kind() {
-	case reflect.Array:
-		fallthrough
-	case reflect.Slice:
-		s := reflect.ValueOf(slice)
-		for i := 0; i < s.Len(); i++ {
-			if i == 0 {
-				result = fmt.Sprint(s.Index(i))
-			} else {
-				result = fmt.Sprintf("%s%s%v", result, sep, s.Index(i))
-			}
-		}
+	// Check the type of the input data.
+	kind := reflect.TypeOf(seq).Kind()
+	if kind != reflect.Array && kind != reflect.Slice {
+		return "", errors.New("input is not a slice or array")
 	}
 
-	return result
+	// Convert the sequence to a string.
+	s := reflect.ValueOf(seq)
+	for i := 0; i < s.Len(); i++ {
+		if i > 0 {
+			sb.WriteString(sep)
+		}
+		fmt.Fprintf(&sb, "%v", s.Index(i))
+	}
+
+	return sb.String(), nil
 }
 
-// The fts returns data as string from the struct by field name.
-// If name gets the name of the key-like (with `_` separator),
+// The fts returns data as string from the struct or pointer
+// on struct by field name. If name gets the name of the key-like
+// (with '_' separator, such a delimiter is used in environment variables),
 // for example KEY_A it will be converted to go-like name - KeyA.
 //
 // If the specified field is missing from the structure,
@@ -49,165 +60,294 @@ func sts(slice interface{}, sep string) string {
 // Note: This function is not used as an env function subsystem,
 // it is only used to test package functions.
 func fts(v interface{}, name, sep string) string {
+	// Check if v is a struct. And if v is a pointer to a structure,
+	// we need to get the structure it refers to.
+	r := reflect.ValueOf(v)
+	if r.Kind() == reflect.Ptr {
+		r = r.Elem()
+	}
+
+	if r.Kind() != reflect.Struct {
+		return ""
+	}
+
 	// Correct the field name to go-style.
 	if strings.Contains(name, "_") {
-		var sb strings.Builder
-		for _, chunk := range strings.Split(name, "_") {
-			sb.WriteString(strings.Title(strings.ToLower(chunk)))
-		}
-		name = sb.String()
+		name = strings.ReplaceAll(
+			strings.Title(
+				strings.ToLower(
+					strings.ReplaceAll(name, "_", " "),
+				),
+			), " ", "")
 	}
 
-	// Get the value of the field.
-	r := reflect.ValueOf(v)
+	// Check if the struct has a field with the given name.
 	f := reflect.Indirect(r).FieldByName(name)
-
-	switch {
-	case !f.IsValid():
+	if !f.IsValid() {
 		return ""
-	case f.Kind() == reflect.Slice || f.Kind() == reflect.Array:
-		return strings.Trim(strings.Replace(fmt.Sprint(f), " ", sep, -1), "[]")
 	}
 
-	return fmt.Sprint(f)
+	// Convert the field value to a string.
+	var value string
+	switch f.Kind() {
+	case reflect.Slice, reflect.Array:
+		if sep == "" {
+			value = fmt.Sprintf("%v", f)
+		} else {
+			value = strings.Join(strings.Fields(fmt.Sprint(f)), sep)
+		}
+		value = strings.Trim(value, "[]")
+	default:
+		value = fmt.Sprintf("%v", f)
+	}
+
+	return value
 }
 
-// The isEmpty returns true if string contains separators or comment only.
+// The isEmpty returns true if string from environment file
+// contains separators or comment only.
 func isEmpty(str string) bool {
+	// If string is empty, return true.
+	if len(str) == 0 {
+		return true
+	}
+
+	// Check the first character in the string:
+	// - if it is the hash character '#' - the string is a comment;
+	// - if the first character is not a separator (the string is not empty);
+	// - if the first character is a separator, check the string with
+	//   using a regular expression.
+
+	// Get first rune from string.
+	firstRune := []rune(str)[0]
+
+	// If first character is a comment - string is empty.
+	if firstRune == '#' {
+		return true
+	}
+
+	// If first character is not a separator - string is not empty.
+	if !unicode.IsSpace(firstRune) {
+		return false
+	}
+
+	// A complex string to be tested using a regular expression.
 	return emptyLineRgx.Match([]byte(str))
 }
 
-// The readParseStore reads env-file, parses this one by the key and value, and
-// stores into environment. It's flexible function that can be used to build
-// more specific tools.
+// The readParseStore reads env-file, parses this one by the key and value,
+// and stores in environment. It's flexible function that can be used to
+// build more specific tools.
 //
-// Arguments
+// Arguments:
 //
-//     filename  path to the env-file;
-//     expand    if true replaces ${var} or $var on the values
-//               from the current environment variables;
-//     update    if true overwrites the value that has already been
-//               set in the environment to new one from the env-file;
-//     forced    if true ignores wrong entries in env-file and loads
-//               all of possible options, without causing an exception.
+//	filename path to the env-file;
+//	expand   if true, replaces ${key} or $key on the values
+//	         from the current environment variables;
+//	update   if true, overwrites the value that has already been
+//	         set in the environment to new one from the env-file;
+//	forced   if true, ignores wrong entries in the env-file and
+//	         loads all correct options, without file parsing exception.
 //
-// Examples
+// Examples:
 //
 // There is `.env` env-file that contains:
 //
-//     # .env file
-//     HOST=0.0.0.0
-//     PORT=80
-//     EMAIL=$USER@goloop.one
+//	# .env file
+//	HOST=0.0.0.0
+//	PORT=80
+//	EMAIL=$USER@goloop.one
 //
 // Some variables are already exists in the environment:
 //
-//     $ env | grep -E "USER|HOST"
-//     USER=goloop
-//     HOST=localhost
+//	$ env | grep -E "USER|HOST"
+//	USER=goloop
+//	HOST=localhost
 //
 // To correctly load data from env-file followed by updating the environment:
 //
-//     env.ReadParseStore(".env", true, true, false)
+//	env.ReadParseStore(".env", true, true, false)
 //
-//     // USER=goloop
-//     // HOST=0.0.0.0
-//     // PORT=80
-//     // EMAIL=goloop@goloop.one
+//	// USER=goloop
+//	// HOST=0.0.0.0
+//	// PORT=80
+//	// EMAIL=goloop@goloop.one
 //
 // Loading new keys to the environment without updating existing ones:
 //
-//     env.ReadParseStore(".env", true, false, false)
+//	env.ReadParseStore(".env", true, false, false)
 //
-//     // USER=goloop
-//     // HOST=localhost          <= hasn't been updated
-//     // PORT=80
-//     // EMAIL=goloop@goloop.one
+//	// USER=goloop
+//	// HOST=localhost          <= hasn't been updated
+//	// PORT=80
+//	// EMAIL=goloop@goloop.one
 //
 // Don't change values that contain keys:
 //
-//     env.ReadParseStore(".env", false, true, false)
+//	env.ReadParseStore(".env", false, true, false)
 //
-//     // USER=goloop
-//     // HOST=0.0.0.0
-//     // PORT=80
-//     // EMAIL=$USER@goloop.one  <= $USER hasn't been changed to real value
+//	// USER=goloop
+//	// HOST=0.0.0.0
+//	// PORT=80
+//	// EMAIL=$USER@goloop.one  <= $USER hasn't been changed to real value
 //
 // Loading data from a damaged env-file. If the configuration env-file is used
 // by other applications and can have incorrect key/value, it can be ignored.
 // For example env-file contains incorrect key `1BC` (the variable name can't
 // start with a digit):
 //
-//     # .env file
-//     HOST=0.0.0.0
-//     PORT=80
-//     1BC=NO                     # <= incorrect variable
-//     EMAIL=$USER@goloop.one
+//	# .env file
+//	HOST=0.0.0.0
+//	PORT=80
+//	1BC=NO                     # <= incorrect variable
+//	EMAIL=$USER@goloop.one
 //
 // There will be an error loading this file:
 //
-//     err := env.ReadParseStore(".env", true, true, false)
-//     if err != nil {
-//         log.Panic(err) // panic: missing variable name
-//     }
+//	err := env.ReadParseStore(".env", true, true, false)
+//	if err != nil {
+//	    log.Panic(err) // panic: missing variable name
+//	}
 //
-// but we can use force method to ignore this line:
+// But we can use force method to ignore this line:
 //
-//     // ... set forced as true (last argument)
-//     err := env.ReadParseStore(".env", true, true, true)
+//	// ... set forced as true (last argument)
+//	err := env.ReadParseStore(".env", true, true, true)
 //
-//     // now the err variable is nil and environment has:
-//     // USER=goloop
-//     // HOST=0.0.0.0
-//     // PORT=80
-//     // EMAIL=goloop@goloop.one
-func readParseStore(filename string, expand, update, forced bool) (err error) {
+//	// Now the err variable is nil
+//	// and environment has:
+//	// USER=goloop
+//	// HOST=0.0.0.0
+//	// PORT=80
+//	// EMAIL=goloop@goloop.one
+func readParseStore(filename string, expand, update, forced bool) error {
+	// Define a structure for the line that is read through scanner.Scan.
+	type line struct {
+		value  string // line value
+		number int    // line number
+	}
+
+	// Define a structure for the line parsing result.
+	type output struct {
+		expanded bool   // if true, the value has been expanded
+		value    string // value of the key
+		line     line   // line instance
+		key      string // key name
+		err      error  // error
+	}
+
 	var (
-		file       *os.File
-		key, value string
+		outputs []output       // slice of parsing results
+		mu      sync.Mutex     // mutex for outputs slice
+		wg      sync.WaitGroup // wait group for goroutines
 	)
 
-	// Open env-file.
-	file, err = os.Open(filename)
+	// Read env-file.
+	// Try to open file.
+	file, err := os.Open(filename)
 	if err != nil {
-		return // unable to open file
+		return err // unable to open file
 	}
+
+	// Close file after function execution.
 	defer file.Close()
 
-	// Parse file.
-	// TODO: use goroutines.
+	// Parse file using goroutines.
+	lines := make(chan line)
+	for i := 0; i < parallelTasks; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for line := range lines {
+				// Get current line and ignore empty string or comments.
+				if isEmpty(line.value) {
+					continue
+				}
+
+				// Parse expression.
+				// The string containing the expression must be of the
+				// format as: [export] KEY=VALUE [# Comment]
+				key, value, err := parseExpression(line.value)
+
+				// Check whether to execute os.Expand only in expand mode,
+				// otherwise set false for all exceptions.
+				expanded := false
+				if expand {
+					expanded = strings.Contains(value, "$")
+				}
+
+				// Set value to the result list.
+				mu.Lock()
+				outputs = append(outputs, output{
+					expanded: expanded,
+					value:    value,
+					line:     line,
+					key:      key,
+					err:      err,
+				})
+				mu.Unlock()
+			}
+		}()
+	}
+
+	// Read file and send each line to lines channel.
+	number := 0
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		// Get current line and ignore empty string or comments.
-		str := scanner.Text()
-		if isEmpty(str) {
+		number++
+		lines <- line{value: scanner.Text(), number: number}
+	}
+
+	close(lines)
+	wg.Wait()
+
+	// Check for errors.
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	// Note!
+	// For expanded mode, it is very important to keep
+	// the sequence of strings to load into environment:
+	//
+	// KEY_0=VALUE_0
+	// KEY_1=${KEY_0}7
+	// KEY_0=VALUE_1
+	//
+	// In this case, the value of KEY_0 will be VALUE_1,
+	// but KEY_1 will be VALUE_07,because the value of KEY_0 is
+	// already loaded in the first row and KEY_1 is updated
+	// in the second row.
+
+	// Sort outputs by level.
+	sort.Slice(outputs, func(i, j int) bool {
+		return outputs[i].line.number < outputs[j].line.number
+	})
+
+	// Process the results.
+	for _, o := range outputs {
+		if !forced && o.err != nil {
+			return o.err
+		} else if forced && o.err != nil {
 			continue
 		}
 
-		// Parse expression.
-		// The string containing the expression must be of the
-		// format as: [export] KEY=VALUE [# Comment]
-		key, value, err = parseExpression(str)
-		if err != nil {
-			if forced {
-				continue // ignore wrong entry
-			}
-			return // incorrect expression
-		}
-
 		// Overwrite or add new value.
-		if _, ok := os.LookupEnv(key); update || !ok {
-			if expand {
-				value = Expand(value)
+		if _, ok := os.LookupEnv(o.key); update || !ok {
+			if expand && o.expanded {
+				o.value = Expand(o.value)
 			}
-			err = Set(key, value)
+
+			// Ignore the forced value because this is not a parsing problem,
+			// but a problem of saving a record in the environment.
+			err := Set(o.key, o.value)
 			if err != nil {
-				return
+				return err
 			}
 		}
 	}
 
-	return scanner.Err()
+	return nil
 }
 
 // The splitN splits the string at the specified rune-marker ignoring the
@@ -215,22 +355,24 @@ func readParseStore(filename string, expand, update, forced bool) (err error) {
 // and (...), {...}, [...].
 //
 // Arguments:
-//    str  data;
-//    sep  element separator;
-//    n    the number of strings to be returned by the function.
-//         It can be any of the following:
-//         - n is equal to zero (n == 0): The result is nil, i.e, zero
-//           sub strings. An empty list is returned;
-//         - n is greater than zero (n > 0): At most n sub strings will be
-//           returned and the last string will be the unsplit remainder;
-//         - n is less than zero (n < 0): All possible substring
-//           will be returned.
+//
+//	str  data;
+//	sep  element separator;
+//	n    the number of strings to be returned by the function.
+//	     It can be any of the following:
+//	     - n is equal to zero (n == 0): The result is nil, i.e, zero
+//	       sub strings. An empty list is returned;
+//	     - n is greater than zero (n > 0): At most n sub strings will be
+//	       returned and the last string will be the unsplit remainder;
+//	     - n is less than zero (n < 0): All possible substring
+//	       will be returned.
 //
 // Examples:
-//    splitN("a,b,c,d", ',', -1)     // ["a", "b", "c", "d"]
-//    splitN("a,(b,c),d", ',', -1)   // ["a", "(b,c)", "d"]
-//    splitN("'a,b',c,d", ',', -1)   // ["'a,b'", "c", "d"]
-//    splitN("a,\"b,c\",d", ',', -1) // ["a", "\"b,c\"", "d"]
+//
+//	splitN("a,b,c,d", ',', -1)     // ["a", "b", "c", "d"]
+//	splitN("a,(b,c),d", ',', -1)   // ["a", "(b,c)", "d"]
+//	splitN("'a,b',c,d", ',', -1)   // ["'a,b'", "c", "d"]
+//	splitN("a,\"b,c\",d", ',', -1) // ["a", "\"b,c\"", "d"]
 func splitN(str, sep string, n int) (r []string) {
 	var (
 		level int
@@ -252,7 +394,7 @@ func splitN(str, sep string, n int) (r []string) {
 	// The contains returns true if all items from the separators
 	// were found in the string and it's all the same.
 	contains := func(str string, separators ...rune) bool {
-		var last = -1
+		last := -1
 		for _, sep := range separators {
 			ir := strings.IndexRune(str, sep)
 			if ir < 0 || (last >= 0 && last != ir) {
@@ -308,74 +450,119 @@ func splitN(str, sep string, n int) (r []string) {
 	return
 }
 
-// The removeInlineComment removes the comment in the string.
+// The removeInlineComment removes the comment in the env-string.
 // Only in strings where the value is enclosed in quotes.
-func removeInlineComment(str, quote string) string {
-	// If the comment is in the string.
-	if strings.Contains(str, "#") {
-		chunks := strings.Split(str, "#")
-		for i := range chunks {
-			str := strings.Join(chunks[:i], "#")
-			if len(str) > 0 && strings.Count(str, quote)%2 == 0 {
-				return strings.TrimSpace(str)
+//
+// The value for quote can be as: single quote ('),
+// double quote ("), and backquote (`).
+func removeInlineComment(str string, q rune) string {
+	// If the comment isn't in the string.
+	// The environment file uses the lattice symbol (#) as a comment.
+	if !strings.Contains(str, "#") {
+		return str
+	}
+
+	var (
+		quote  = string(q)     // quote as string
+		escape = "\\" + quote  // escaped quote
+		inside bool            // inside of the quote
+		result strings.Builder // result string
+	)
+
+	// Remove the comment in the string.
+	for i := 0; i < len(str); i++ {
+		ch := str[i]
+
+		switch {
+		case ch == byte(q):
+			if inside {
+				// Check if the quote is escaped.
+				if i > 0 && str[i-1] != '\\' {
+					inside = false
+				}
+			} else {
+				inside = true
 			}
+			result.WriteByte(ch)
+		case ch == '#' && !inside:
+			return strings.TrimSpace(result.String())
+		case ch == '\\' && inside && i+1 < len(str) && str[i+1] == byte(q):
+			// Escaping quotes inside a quoted line.
+			result.WriteString(escape)
+			i++
+		default:
+			result.WriteByte(ch)
 		}
 	}
-	return str
+
+	return result.String()
 }
 
 // The parseExpression breaks expression into key and value, ignore
 // comments and any spaces.
 //
-// Note: value must be an expression.
+// Note: value must be an env-expression.
 func parseExpression(exp string) (key, value string, err error) {
-	var (
-		quote  = "\""
-		marker = fmt.Sprintf("<::%d::>", time.Now().Unix())
-	)
-
-	// Get key.
+	// Get key name.
 	// Remove `export` prefix, `=` suffix and trim spaces.
 	tmp := keyRgx.FindStringSubmatch(exp)
 	if len(tmp) < 2 {
 		err = fmt.Errorf("missing variable name for: %s (`%v`)", exp, tmp)
 		return
 	}
+
 	key = tmp[1]
 
-	// Get value.
+	// Get value of the key.
 	// ... the `=` sign in the string.
-	value = exp[strings.Index(exp, "="):]
-	if !valueRgx.Match([]byte(value)) {
-		err = fmt.Errorf("incorrect value: %s", value)
-		return
-	}
-	value = strings.TrimSpace(value[1:])
-
-	switch {
-	case strings.HasPrefix(value, "'"):
-		quote = "'"
-		fallthrough
-	case strings.HasPrefix(value, "\""):
-		// Replace escaped quotes, remove comment in the string,
-		// check begin- and end- quotes and back escaped quotes.
-		value = strings.Replace(value, fmt.Sprintf("\\%s", quote), marker, -1)
-		value = removeInlineComment(value, quote)
-		if strings.Count(value, quote)%2 != 0 { // begin- and end- quotes
+	if pos := strings.IndexByte(exp, '='); pos != -1 {
+		value = exp[pos:]
+		if !valueRgx.MatchString(value) {
 			err = fmt.Errorf("incorrect value: %s", value)
 			return
 		}
-		value = value[1 : len(value)-1] // remove begin- and end- quotes
-		// ... change `\"` and `\'` to `"` and `'`.
-		value = strings.Replace(value, marker, quote, -1)
-	default:
-		if strings.Contains(value, "#") {
-			// Split by sharp sign and for string without quotes -
-			// the first element has the meaning only.
-			chunks := strings.Split(value, "#")
-			chunks = strings.Split(chunks[0], " ")
-			value = strings.TrimSpace(chunks[0])
+	} else {
+		err = fmt.Errorf("missing `=` sign in the expression: %s", exp)
+		return
+	}
+
+	value = strings.TrimSpace(value[1:])
+
+	// Check the value for quotes.
+	var quote rune
+	if strings.HasPrefix(value, "'") {
+		quote = '\''
+	} else if strings.HasPrefix(value, "\"") {
+		quote = '"'
+	} else if strings.HasPrefix(value, "`") {
+		quote = '`'
+	}
+
+	if quote == 0 && strings.Contains(value, "#") {
+		// Split by sharp sign and for string without quotes -
+		// the first element has the meaning only.
+		chunks := strings.Split(value, "#")
+		chunks = strings.Split(chunks[0], " ")
+		value = strings.TrimSpace(chunks[0])
+	} else if quote != 0 {
+		// A unique marker for temporary replacement of quotation marks.
+		marker := fmt.Sprintf("<::%d::>", time.Now().Unix())
+
+		// Replace escaped quotes, remove comment in the string,
+		// check begin- and end- quotes and back escaped quotes.
+		value = strings.Replace(value, fmt.Sprintf("\\%c", quote), marker, -1)
+		value = removeInlineComment(value, quote)
+
+		// Check begin- and end- quotes.
+		if strings.Count(value, string(quote))%2 != 0 {
+			err = fmt.Errorf("incorrect value: %s", value)
+			return
 		}
+
+		// Remove begin- and end- quotes
+		// ... change `\"` and `\'` to `"` and `'`.
+		value = value[1 : len(value)-1]
+		value = strings.Replace(value, marker, string(quote), -1)
 	}
 
 	return
