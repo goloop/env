@@ -144,7 +144,7 @@ func TestUnmarshalEnvCustom(t *testing.T) {
 		t.Errorf("PORT: expected `80` but `%v`", c.Port)
 	}
 
-	if value := sts(c.AllowedHosts, ":"); value != "192.168.0.1:localhost" {
+	if value, _ := sts(c.AllowedHosts, ":"); value != "192.168.0.1:localhost" {
 		t.Errorf("ALLOWED_HOSTS: expected `%v` but `%v`",
 			"192.168.0.1:localhost", value)
 	}
@@ -841,11 +841,11 @@ func TestUnmarshalDefaultValue(t *testing.T) {
 		t.Errorf("incorrect Host %s", d.Host)
 	}
 
-	if v := sts(d.AllowedHosts, ":"); v != "localhost:0.0.0.0" {
+	if v, _ := sts(d.AllowedHosts, ":"); v != "localhost:0.0.0.0" {
 		t.Errorf("incorrect AllowedHosts %s", v)
 	}
 
-	if v := sts(d.Names, ":"); v != "John:Bob:Smit" {
+	if v, _ := sts(d.Names, ":"); v != "John:Bob:Smit" {
 		t.Errorf("incorrect Names %s", d)
 	}
 
@@ -868,11 +868,11 @@ func TestUnmarshalDefaultValue(t *testing.T) {
 		t.Errorf("host sets as default %s", d.Host)
 	}
 
-	if sts(d.AllowedHosts, ":") == "localhost:0.0.0.0" {
+	if v, _ := sts(d.AllowedHosts, ":"); v == "localhost:0.0.0.0" {
 		t.Errorf("allowedHosts sets as default %s", d.AllowedHosts)
 	}
 
-	if sts(d.Names, ":") == "John:Bob:Smit" {
+	if v, _ := sts(d.Names, ":"); v == "John:Bob:Smit" {
 		t.Errorf("names setas as default %s", d.Names)
 	}
 }
