@@ -2,6 +2,7 @@ package env
 
 import (
 	"bytes"
+	"math"
 	"os"
 	"regexp"
 	"runtime"
@@ -62,16 +63,9 @@ func Together(pt int) int {
 	// is twice the number of CPU cores.
 	max := runtime.NumCPU() * 2
 
-	// The minimum number of parallel tasks is 1.
+	// The minimum number of parallel tasks is 2.
 	// And the maximum number is twice the number of CPU cores.
-	if pt <= 0 {
-		parallelTasks = 1
-	} else if pt > max {
-		parallelTasks = max
-	} else {
-		parallelTasks = pt
-	}
-
+	parallelTasks = int(math.Min(float64(max), math.Max(float64(pt), 2)))
 	return parallelTasks
 }
 

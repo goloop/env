@@ -42,9 +42,17 @@ func TestUnmarshalEnvNil(t *testing.T) {
 	}
 }
 
+// TestUnmarshalEnvEmpty tests unmarshalEnv for empty object.
+func TestUnmarshalEnvEmpty(t *testing.T) {
+	data := struct{}{}
+	if err := unmarshalEnv("", &data); err == nil {
+		t.Error("an error is expected for empty object")
+	}
+}
+
 // TestUnmarshalEnvCustomUnmarshalErr tests custom unmarshalEnv with error.
 func TestUnmarshalEnvCustomUnmarshalErr(t *testing.T) {
-	var data = configDecodeErr{}
+	data := configDecodeErr{}
 	if err := unmarshalEnv("", &data); err == nil {
 		t.Error("an error is expected for nil object")
 	}
@@ -74,7 +82,7 @@ func TestUnmarshalEnvDefaultKeyName(t *testing.T) {
 
 // TestUnmarshalEnvInvalidKey tests unmarshalEnv with invalid key name.
 func TestUnmarshalEnvInvalidKey(t *testing.T) {
-	var data = struct {
+	data := struct {
 		Host string `env:"HO$T"`
 	}{}
 
@@ -188,7 +196,7 @@ func TestUnmarshalEnvNumbers(t *testing.T) {
 	// Testing.
 	for i := 0; i < 3; i++ {
 		for key, value := range tests {
-			var d = &data{}
+			d := &data{}
 
 			// Set test data.
 			os.Clearenv()
@@ -312,7 +320,7 @@ func TestUnmarshalEnvString(t *testing.T) {
 		KeyString string `env:"KEY_STRING"`
 	}
 
-	var tests = []interface{}{
+	tests := []interface{}{
 		8080,
 		"Hello World",
 		"true",
@@ -499,7 +507,7 @@ func TestUnmarshalEnvArray(t *testing.T) {
 
 	// Test correct values.
 	for key, value := range corretc {
-		var d = &data{}
+		d := &data{}
 
 		os.Clearenv()
 		if err := os.Setenv(key, value); err != nil {
@@ -620,7 +628,7 @@ func TestUnmarshalURL(t *testing.T) {
 	// Unmarshaling.
 	err = unmarshalEnv("", &d)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Tests results.
@@ -764,7 +772,7 @@ func TestUnmarshalStructPtr(t *testing.T) {
 	// Unmarshaling.
 	err = unmarshalEnv("", &c)
 	if err != nil {
-		t.Error("incorrect ummarshaling")
+		t.Fatal("incorrect ummarshaling")
 	}
 
 	// Tests.
@@ -807,7 +815,6 @@ func TestUnmarshalEnvStringPtr(t *testing.T) {
 	if *d.KeyString != "Hello World" {
 		t.Errorf("Incorrect value set for KEY_STRING: %v", *d.KeyString)
 	}
-
 }
 
 // TestUnmarshalDefaultValue tests unmarshalEnv for default value.
