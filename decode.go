@@ -17,6 +17,30 @@ type Unmarshaler interface {
 	UnmarshalEnv() error
 }
 
+// The validateStruct checks whether the object is a pointer to the structure,
+// and returns reflect.Type and reflect.Value of the object. If the object is
+// not a pointer to the structure or object is nil, it returns an error.
+func validateStruct(obj interface{}) (reflect.Type, reflect.Value, error) {
+	t, v, err := reflect.TypeOf(obj), reflect.ValueOf(obj), error(nil)
+
+	switch {
+	case obj == nil:
+		// Object is nil.
+		err = errors.New("obj is nil")
+	case v.Kind() != reflect.Ptr || v.IsNil():
+		// Object is not a pointer or pointer is nil.
+		err = errors.New("obj should be a non-nil pointer to a struct")
+	case v.Type().Elem().Kind() != reflect.Struct:
+		// Object is not a pointer to a struct.
+		err = errors.New("obj should be a pointer to a struct")
+	case v.Elem().NumField() == 0:
+		// Object is a pointer to an empty struct (without fields).
+		err = errors.New("obj should be a pointer to a non-empty struct")
+	}
+
+	return t, v, err
+}
+
 // The unmarshalEnv read variables from the environment
 // and save them into Go-struct.
 //
@@ -36,24 +60,15 @@ type Unmarshaler interface {
 // The obj is a pointer to an initialized object where need to
 // save variables from the environment.
 func unmarshalEnv(prefix string, obj interface{}) error {
-	var t, e = reflect.TypeOf(obj), reflect.ValueOf(obj)
-
-	// The obj argument should be a pointer to an initialized struct.
-	switch {
-	case obj == nil:
-		fallthrough
-	case t.Kind() != reflect.Ptr: // check for pointer first ...
-		fallthrough
-	case t.Elem().Kind() != reflect.Struct: // ... after on the struct
-		fallthrough
-	case !e.Elem().IsValid():
-		return errors.New("obj should be a pointer to an initialized struct")
+	t, v, err := validateStruct(obj)
+	if err != nil {
+		return err
 	}
 
 	// If objects implements Unmarshaler interface
 	// try to calling a custom Unmarshal method.
-	if e.Type().Implements(reflect.TypeOf((*Unmarshaler)(nil)).Elem()) {
-		if m := e.MethodByName("UnmarshalEnv"); m.IsValid() {
+	if v.Type().Implements(reflect.TypeOf((*Unmarshaler)(nil)).Elem()) {
+		if m := v.MethodByName("UnmarshalEnv"); m.IsValid() {
 			tmp := m.Call([]reflect.Value{}) // len == 1
 			if err := tmp[0].Interface(); err != nil {
 				return fmt.Errorf("%v", err)
@@ -62,10 +77,14 @@ func unmarshalEnv(prefix string, obj interface{}) error {
 		}
 	}
 
+	// Note: It makes no sense to execute the following code in goroutines,
+	// because the environment variables are global and the access to them
+	// is not thread-safe.
+
 	// Walk through all the fields of the structure
 	// and save data from the environment.
-	elem := e.Elem()
-	for i := 0; i < elem.NumField(); i++ {
+	e := v.Elem()
+	for i := 0; i < e.NumField(); i++ {
 		field := t.Elem().Field(i)
 
 		// Get parameters from tags.
@@ -97,12 +116,12 @@ func unmarshalEnv(prefix string, obj interface{}) error {
 		}
 
 		// If the key exists - take its value from environment.
-		if v, ok := os.LookupEnv(tg.key); ok {
-			tg.value = v
+		if value, ok := os.LookupEnv(tg.key); ok {
+			tg.value = value
 		}
 
 		// Set value to field.
-		item := elem.FieldByName(field.Name)
+		item := e.FieldByName(field.Name)
 		if err := setFieldValue(&item, tg); err != nil {
 			return err
 		}
@@ -183,17 +202,21 @@ func setFieldValue(item *reflect.Value, tg *tagGroup) error {
 }
 
 // The setSequence sets slice into item, if item is slice or array.
-func setSequence(item *reflect.Value, seq []string) (err error) {
+func setSequence(item *reflect.Value, seq []string) error {
+	// Ignore empty sequences.
 	if len(seq) == 0 ||
 		(item.Index(0).Kind() == reflect.Array && item.Type().Len() == 0) ||
 		(item.Index(0).Kind() == reflect.Slice && item.Len() == 0) {
 		return nil
 	}
 
+	// Set values to the sequence.
 	for i, value := range seq {
 		elem := item.Index(i)
-		err := setValue(elem, value)
-		if err != nil {
+		if !elem.CanSet() {
+			return fmt.Errorf("cannot set value %s at index %d", value, i)
+		}
+		if err := setValue(elem, value); err != nil {
 			return err
 		}
 	}
@@ -201,7 +224,7 @@ func setSequence(item *reflect.Value, seq []string) (err error) {
 	return nil
 }
 
-// The setValue sets value into item.
+// The setValue sets value into item (field of the struct).
 func setValue(item reflect.Value, value string) error {
 	kind := item.Kind()
 	switch kind {
@@ -262,10 +285,8 @@ func setValue(item reflect.Value, value string) error {
 	return nil
 }
 
-// The strToIntKind converts string to int64 type with checking for conversion
-// to intX type. Returns default value for int type if value is empty.
-//
-// P.s. The intX determined by reflect.Kind.
+// The strToIntKind converts string to int64 type with out-of-range checking
+// for int. Returns 0 if value is empty.
 func strToIntKind(value string, kind reflect.Kind) (r int64, err error) {
 	// For empty string returns zero.
 	if len(value) == 0 {
@@ -280,26 +301,33 @@ func strToIntKind(value string, kind reflect.Kind) (r int64, err error) {
 
 	switch kind {
 	case reflect.Int:
-		// For 32-bit platform it is necessary to check overflow.
 		if strconv.IntSize == 32 {
+			// For 32-bit platform it is necessary to check overflow.
 			if r < math.MinInt32 || r > math.MaxInt32 {
-				return 0, fmt.Errorf("%d overflows int (int32)", r)
+				return 0, fmt.Errorf("%d is out of range for int (int32)", r)
+			}
+		} else {
+			// For 64-bit platform it is necessary to check overflow.
+			if r < math.MinInt64 || r > math.MaxInt64 {
+				return 0, fmt.Errorf("%d is out of range for int (int64)", r)
 			}
 		}
 	case reflect.Int8:
 		if r < math.MinInt8 || r > math.MaxInt8 {
-			return 0, fmt.Errorf("%d overflows int8", r)
+			return 0, fmt.Errorf("%d is out of range for int8", r)
 		}
 	case reflect.Int16:
 		if r < math.MinInt16 || r > math.MaxInt16 {
-			return 0, fmt.Errorf("%d overflows int16", r)
+			return 0, fmt.Errorf("%d is out of range for int16", r)
 		}
 	case reflect.Int32:
 		if r < math.MinInt32 || r > math.MaxInt32 {
-			return 0, fmt.Errorf("%d overflows int32", r)
+			return 0, fmt.Errorf("%d is out of range for int32", r)
 		}
 	case reflect.Int64:
-		// pass
+		if r < math.MinInt64 || r > math.MaxInt64 {
+			return 0, fmt.Errorf("%d is out of range for int64", r)
+		}
 	default:
 		r, err = 0, fmt.Errorf("incorrect kind %v", kind)
 	}
@@ -307,10 +335,8 @@ func strToIntKind(value string, kind reflect.Kind) (r int64, err error) {
 	return
 }
 
-// strToUintKind convert string to uint64 type with checking for conversion
-// to uintX type. Returns default value for uint type if value is empty.
-//
-// P.s. The uintX determined by reflect.Kind.
+// The strToUintKind convert string to uint64 type with out-of-range checking
+// for uint. Returns 0 if value is empty.
 func strToUintKind(value string, kind reflect.Kind) (r uint64, err error) {
 	// For empty string returns zero.
 	if len(value) == 0 {
@@ -326,23 +352,31 @@ func strToUintKind(value string, kind reflect.Kind) (r uint64, err error) {
 	switch kind {
 	case reflect.Uint:
 		// For 32-bit platform it is necessary to check overflow.
-		if strconv.IntSize == 32 && r > math.MaxUint32 {
-			return 0, fmt.Errorf("%d overflows uint (uint32)", r)
+		if strconv.IntSize == 32 {
+			if r > math.MaxUint32 {
+				return 0, fmt.Errorf("%d is out of range for uint (uint32)", r)
+			}
+		} else {
+			if r > math.MaxUint64 {
+				return 0, fmt.Errorf("%d is out of range for uint (uint64)", r)
+			}
 		}
 	case reflect.Uint8:
 		if r > math.MaxUint8 {
-			return 0, fmt.Errorf("%d overflows uint8", r)
+			return 0, fmt.Errorf("%d is out of range for uint8", r)
 		}
 	case reflect.Uint16:
 		if r > math.MaxUint16 {
-			return 0, fmt.Errorf("%d overflows uint16", r)
+			return 0, fmt.Errorf("%d is out of range for uint16", r)
 		}
 	case reflect.Uint32:
 		if r > math.MaxUint32 {
-			return 0, fmt.Errorf("strToUint32: %d overflows uint32", r)
+			return 0, fmt.Errorf("%d is out of range for uint32", r)
 		}
 	case reflect.Uint64:
-		// pass
+		if r > math.MaxUint64 {
+			return 0, fmt.Errorf("%d is out of range for uint64", r)
+		}
 	default:
 		r, err = 0, fmt.Errorf("incorrect kind %v", kind)
 	}
@@ -350,10 +384,8 @@ func strToUintKind(value string, kind reflect.Kind) (r uint64, err error) {
 	return
 }
 
-// strToFloatKind convert string to float64 type with checking for conversion
-// to floatX type. Returns default value for float64 type if value is empty.
-//
-// P.s. The floatX determined by reflect.Kind.
+// The strToFloatKind converts a string to float64 with out-of-range checking
+// for float. Returns 0 if value is empty.
 func strToFloatKind(value string, kind reflect.Kind) (r float64, err error) {
 	// For empty string returns zero.
 	if len(value) == 0 {
@@ -368,11 +400,13 @@ func strToFloatKind(value string, kind reflect.Kind) (r float64, err error) {
 
 	switch kind {
 	case reflect.Float32:
-		if math.Abs(r) > math.MaxFloat32 {
-			return 0.0, fmt.Errorf("%f overflows float32", r)
+		if r < -math.MaxFloat32 || r > math.MaxFloat32 {
+			return 0.0, fmt.Errorf("%f is out of range for float32", r)
 		}
 	case reflect.Float64:
-		// pass
+		if r < -math.MaxFloat64 || r > math.MaxFloat64 {
+			return 0.0, fmt.Errorf("%f is out of range for float64", r)
+		}
 	default:
 		r, err = 0, fmt.Errorf("incorrect kind")
 	}
@@ -380,26 +414,27 @@ func strToFloatKind(value string, kind reflect.Kind) (r float64, err error) {
 	return
 }
 
-// strToBool convert string to bool type. Returns: result, error.
-// Returns default value for bool type if value is empty.
-func strToBool(value string) (bool, error) {
-	var epsilon = math.Nextafter(1, 2) - 1
-
+// The strToBool convert string to bool type.
+// Returns false if value is empty.
+func strToBool(v string) (bool, error) {
 	// For empty string returns false.
-	if len(value) == 0 {
+	if len(v) == 0 {
 		return false, nil
 	}
 
-	r, errB := strconv.ParseBool(value)
-	if errB != nil {
-		f, errF := strconv.ParseFloat(value, 64)
-		if errF != nil {
-			return r, errB
+	// Convert string to bool.
+	// It accepts 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
+	// Any other value returns an error.
+	r, err := strconv.ParseBool(v)
+	if err != nil {
+		// For example, the range -0.7 to 0.7 is false,
+		// and the rest of the values are true.
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return r, fmt.Errorf("'%s' cannot be converted to a boolean", v)
 		}
 
-		if math.Abs(f) > epsilon {
-			r = true
-		}
+		r = math.Abs(f) > 0.7 // definition of state
 	}
 
 	return r, nil
