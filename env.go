@@ -2,7 +2,6 @@ package env
 
 import (
 	"bytes"
-	"math"
 	"os"
 	"regexp"
 	"runtime"
@@ -54,18 +53,29 @@ var (
 // Initializer.
 func init() {
 	// Set the number of parallel parsing tasks.
-	Together(runtime.NumCPU())
+	ParallelTasks(runtime.NumCPU())
 }
 
 // Together sets the number of parallel transliteration tasks.
-func Together(pt int) int {
+func ParallelTasks(pt int) int {
 	// The maximum number of parallel tasks
 	// is twice the number of CPU cores.
 	max := runtime.NumCPU() * 2
 
+	// clamp returns the value limited to the given range [min, max].
+	clamp := func(value, min, max int) int {
+		if value < min {
+			return min
+		}
+		if value > max {
+			return max
+		}
+		return value
+	}
+
 	// The minimum number of parallel tasks is 2.
 	// And the maximum number is twice the number of CPU cores.
-	parallelTasks = int(math.Min(float64(max), math.Max(float64(pt), 2)))
+	parallelTasks = clamp(pt, 2, max)
 	return parallelTasks
 }
 
@@ -76,7 +86,7 @@ func Together(pt int) int {
 // Returns an error if the env-file contains incorrect data,
 // file is damaged or missing.
 //
-// # Examples
+// Examples:
 //
 // In this example, some variables are already set in the environment:
 //
@@ -318,26 +328,26 @@ func Save(filename, prefix string, obj interface{}) error {
 //
 // Check if a variable exists in the environment:
 //
-//	 fmt.Printf("KEY_0 is %v\n", env.Exists("KEY_0"))
-//	 fmt.Printf("KEY_1 is %v\n", env.Exists("KEY_1"))
-//	 fmt.Printf("KEY_0 and KEY_1 is %v\n\n", env.Exists("KEY_0", "KEY_1"))
+//	fmt.Printf("KEY_0 is %v\n", env.Exists("KEY_0"))
+//	fmt.Printf("KEY_1 is %v\n", env.Exists("KEY_1"))
+//	fmt.Printf("KEY_0 and KEY_1 is %v\n\n", env.Exists("KEY_0", "KEY_1"))
 //
-//	 if err := env.Update("./cmd/.env"); err != nil {
-//	   log.Fatal(err)
-//	 }
+//	if err := env.Update("./cmd/.env"); err != nil {
+//	  log.Fatal(err)
+//	}
 //
-//		fmt.Printf("KEY_0 is %v\n", env.Exists("KEY_0"))
-//		fmt.Printf("KEY_1 is %v\n", env.Exists("KEY_1"))
-//		fmt.Printf("KEY_0 and KEY_1 is %v\n", env.Exists("KEY_0", "KEY_1"))
+//	fmt.Printf("KEY_0 is %v\n", env.Exists("KEY_0"))
+//	fmt.Printf("KEY_1 is %v\n", env.Exists("KEY_1"))
+//	fmt.Printf("KEY_0 and KEY_1 is %v\n", env.Exists("KEY_0", "KEY_1"))
 //
-//		// Output:
-//		//  KEY_0 is true
-//		//  KEY_1 is false
-//		//  KEY_0 and KEY_1 is false
-//		//
-//		//  KEY_0 is true
-//		//  KEY_1 is true
-//		//  KEY_0 and KEY_1 is true
+//	// Output:
+//	//  KEY_0 is true
+//	//  KEY_1 is false
+//	//  KEY_0 and KEY_1 is false
+//	//
+//	//  KEY_0 is true
+//	//  KEY_1 is true
+//	//  KEY_0 and KEY_1 is true
 func Exists(keys ...string) bool {
 	for _, key := range keys {
 		if _, ok := os.LookupEnv(key); !ok {
@@ -443,10 +453,10 @@ func Unmarshal(prefix string, obj interface{}) error {
 // Use the following tags in the fields of structure to
 // set the marshing parameters:
 //
-//	env  matches the name of the key in the environment;
-//	def  default value (if empty, sets the default value
-//	     for the field type of structure);
-//	sep  sets the separator for lists/arrays (default ` ` - space).
+//   - env  matches the name of the key in the environment;
+//   - def  default value (if empty, sets the default value
+//     for the field type of structure);
+//   - sep  sets the separator for lists/arrays (default ` ` - space).
 //
 // Structure example:
 //

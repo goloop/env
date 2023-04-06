@@ -65,7 +65,7 @@ func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
 
 		// Get parameters from tags.
 		// The name of the key.
-		key := strings.Trim(field.Tag.Get(tagNameKey), " ")
+		key := strings.TrimSpace(field.Tag.Get(tagNameKey))
 		if key == "" {
 			key = field.Name
 		}
@@ -147,9 +147,8 @@ func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
 // The getSequence get sequence as string.
 func getSequence(item *reflect.Value, sep string) (string, error) {
 	var (
-		result string
-		kind   reflect.Kind
-		max    int
+		kind reflect.Kind
+		max  int
 	)
 
 	// Type checking and instance adjustment.
@@ -165,12 +164,11 @@ func getSequence(item *reflect.Value, sep string) (string, error) {
 		return "", fmt.Errorf("incorrect type: %s", item.Type())
 	}
 
-	// Item list string display.
-	result = strings.Replace(fmt.Sprint(*item), " ", sep, -1)
+	// Use strings.Builder for efficient string concatenation.
+	var sb strings.Builder
 
 	// For pointers and structures.
 	if kind == reflect.Ptr || kind == reflect.Struct {
-		tmp := []string{}
 		for i := 0; i < max; i++ {
 			elem := item.Index(i)
 			if kind == reflect.Ptr {
@@ -182,15 +180,29 @@ func getSequence(item *reflect.Value, sep string) (string, error) {
 				return "", err
 			}
 
-			tmp = append(tmp, v)
+			if i > 0 {
+				sb.WriteString(sep)
+			}
+			sb.WriteString(v)
 		}
-		result = strings.Replace(fmt.Sprint(tmp), " ", sep, -1)
+	} else {
+		for i := 0; i < max; i++ {
+			v, err := toStr(item.Index(i))
+			if err != nil {
+				return "", err
+			}
+
+			if i > 0 {
+				sb.WriteString(sep)
+			}
+			sb.WriteString(v)
+		}
 	}
 
-	return strings.Trim(result, "[]"+sep), nil
+	return sb.String(), nil
 }
 
-// The toStr converts item to string.
+// The toStr converts any item to string.
 func toStr(item reflect.Value) (string, error) {
 	switch item.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16,
