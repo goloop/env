@@ -240,10 +240,8 @@ func readParseStore(filename string, expand, update, forced bool) error {
 		key      string // key name
 	}
 
-	var (
-		outputs []output   // slice of parsed lines
-		mu      sync.Mutex // mutex for outputs
-	)
+	// We use sync.Map instead of []output with sync.Mutex.
+	var outputs sync.Map // map[int]output
 
 	// Try to open env-file in read only mode.
 	file, err := os.OpenFile(filename, os.O_RDONLY, 0)
@@ -291,14 +289,12 @@ func readParseStore(filename string, expand, update, forced bool) error {
 				}
 
 				// Save the result.
-				mu.Lock()
-				outputs = append(outputs, output{
+				outputs.Store(line.number, output{
 					expanded: expanded,
 					value:    value,
 					line:     line,
 					key:      key,
 				})
-				mu.Unlock()
 			}
 
 			return nil
@@ -332,15 +328,23 @@ func readParseStore(filename string, expand, update, forced bool) error {
 		return err
 	}
 
+	// We save the results in a regular section for
+	// further sorting and processing.
+	var results []output
+	outputs.Range(func(_, value interface{}) bool {
+		results = append(results, value.(output))
+		return true
+	})
+
 	// Sort the results by line number.
 	if expand {
-		sort.Slice(outputs, func(i, j int) bool {
-			return outputs[i].line.number < outputs[j].line.number
+		sort.Slice(results, func(i, j int) bool {
+			return results[i].line.number < results[j].line.number
 		})
 	}
 
 	// Set the environment variables.
-	for _, o := range outputs {
+	for _, o := range results {
 		if _, ok := os.LookupEnv(o.key); update || !ok {
 			if expand && o.expanded {
 				o.value = os.ExpandEnv(o.value)
