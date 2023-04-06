@@ -1,18 +1,19 @@
 package env
 
-// The tagGroup is the tag group of a field.
+// The tagGroup represents the tag group of a field.
 type tagGroup struct {
-	key   string
-	value string
-	sep   string
+	key   string // key name
+	value string // key value
+	sep   string // separator between value items (for sequences)
 }
 
-// The isValid returns true if key name is valid.
+// The isValid method returns true if the key name is valid.
 func (tg tagGroup) isValid() bool {
-	return validKeyRgx.Match([]byte(tg.key))
+	return validKeyRgx.MatchString(tg.key)
 }
 
-// The isIgnored returns true if key name is defValueIgnored or incorrect.
+// The isIgnored method returns true if the key name is
+// defValueIgnored or incorrect.
 func (tg tagGroup) isIgnored() bool {
 	return !tg.isValid() || tg.key == defValueIgnored
 }
