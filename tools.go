@@ -303,8 +303,12 @@ func readParseStore(filename string, expand, update, forced bool) error {
 	number := 0 // file line number
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		lines <- line{text: scanner.Text(), number: number}
-		number++ // increment line number
+		select {
+		case lines <- line{text: scanner.Text(), number: number}:
+			number++ // increment line number
+		case <-ctx.Done():
+			break // stop reading the file if an error is detected
+		}
 	}
 	close(lines)
 
