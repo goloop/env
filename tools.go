@@ -2,6 +2,7 @@ package env
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // The sts converts a sequence (slice or array) of any type to a string.
@@ -221,53 +224,64 @@ func isEmpty(str string) bool {
 //	// PORT=80
 //	// EMAIL=goloop@goloop.one
 func readParseStore(filename string, expand, update, forced bool) error {
-	// Define a structure for the line that is read through scanner.Scan.
+	// Define a structure for the line
+	// that is read from the env-file.
 	type line struct {
-		value  string // line value
-		number int    // line number
+		text   string // raw string from env-file
+		number int    // number of line in the env-file
 	}
 
-	// Define a structure for the line parsing result.
+	// Define a structure for the result,
+	// which is a parsed line from the env-file.
 	type output struct {
-		expanded bool   // if true, the value has been expanded
-		value    string // value of the key
-		line     line   // line instance
+		expanded bool   // true if the value can be expanded
+		value    string // key value
+		line     line   // raw line object
 		key      string // key name
-		err      error  // error
 	}
 
 	var (
-		outputs []output       // slice of parsing results
-		mu      sync.Mutex     // mutex for outputs slice
-		wg      sync.WaitGroup // wait group for goroutines
+		outputs []output   // slice of parsed lines
+		mu      sync.Mutex // mutex for outputs
 	)
 
-	// Read env-file.
-	// Try to open file.
-	file, err := os.Open(filename)
+	// Try to open env-file in read only mode.
+	file, err := os.OpenFile(filename, os.O_RDONLY, 0)
 	if err != nil {
-		return err // unable to open file
+		return err
 	}
-
-	// Close file after function execution.
 	defer file.Close()
 
-	// Parse file using goroutines.
-	lines := make(chan line)
+	// Parse env-file using goroutines.
+	// We use errgroup as a better way to group goroutines and context to
+	// stop all goroutines from executing if an error is detected in a file.
+	lines := make(chan line) // channel for lines from env-file
+	ctx, cancel := context.WithCancel(context.Background())
+	eg, ctx := errgroup.WithContext(ctx)
+	defer cancel()
+
+	// Create some goroutines (parallelTasks)
+	// to parsing lines from an env-file.
 	for i := 0; i < parallelTasks; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		eg.Go(func() error {
 			for line := range lines {
-				// Get current line and ignore empty string or comments.
-				if isEmpty(line.value) {
+				// Ignore empty string or comments.
+				if isEmpty(line.text) {
 					continue
 				}
 
 				// Parse expression.
 				// The string containing the expression must be of the
 				// format as: [export] KEY=VALUE [# Comment]
-				key, value, err := parseExpression(line.value)
+				key, value, err := parseExpression(line.text)
+				if err != nil {
+					if forced {
+						continue // ignore error in the line
+					} else {
+						cancel() // stop other goroutines too
+						return err
+					}
+				}
 
 				// Check whether to execute os.Expand only in expand mode,
 				// otherwise set false for all exceptions.
@@ -276,71 +290,63 @@ func readParseStore(filename string, expand, update, forced bool) error {
 					expanded = strings.Contains(value, "$")
 				}
 
-				// Set value to the result list.
+				// Save the result.
 				mu.Lock()
 				outputs = append(outputs, output{
 					expanded: expanded,
 					value:    value,
 					line:     line,
 					key:      key,
-					err:      err,
 				})
 				mu.Unlock()
 			}
-		}()
+
+			return nil
+		})
 	}
 
-	// Read file and send each line to lines channel.
-	number := 0
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		number++
-		lines <- line{value: scanner.Text(), number: number}
-	}
+	// Read the file line by line and send it to the channel.
+	// The done channel informs about the end of reading
+	// the file and the existing reading error.
+	done := make(chan error)
+	go func() {
+		number := 0 // file line number
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			lines <- line{text: scanner.Text(), number: number}
+			number++
+		}
+		done <- scanner.Err()
+	}()
 
+	// Wait for the end of reading the file and check for errors.
+	err = <-done
 	close(lines)
-	wg.Wait()
-
-	// Check for errors.
-	if err := scanner.Err(); err != nil {
+	if err != nil {
 		return err
 	}
 
-	// Note!
-	// For expanded mode, it is very important to keep
-	// the sequence of strings to load into environment:
-	//
-	// KEY_0=VALUE_0
-	// KEY_1=${KEY_0}7
-	// KEY_0=VALUE_1
-	//
-	// In this case, the value of KEY_0 will be VALUE_1,
-	// but KEY_1 will be VALUE_07,because the value of KEY_0 is
-	// already loaded in the first row and KEY_1 is updated
-	// in the second row.
+	// Wait for all goroutines to finish and check for errors.
+	err = eg.Wait()
+	if err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
 
-	// Sort outputs by level.
-	sort.Slice(outputs, func(i, j int) bool {
-		return outputs[i].line.number < outputs[j].line.number
-	})
+	// Sort the results by line number.
+	if expand {
+		sort.Slice(outputs, func(i, j int) bool {
+			return outputs[i].line.number < outputs[j].line.number
+		})
+	}
 
-	// Process the results.
+	// Set the environment variables.
 	for _, o := range outputs {
-		if !forced && o.err != nil {
-			return o.err
-		} else if forced && o.err != nil {
-			continue
-		}
-
-		// Overwrite or add new value.
 		if _, ok := os.LookupEnv(o.key); update || !ok {
 			if expand && o.expanded {
-				o.value = Expand(o.value)
+				o.value = os.ExpandEnv(o.value)
 			}
 
-			// Ignore the forced value because this is not a parsing problem,
-			// but a problem of saving a record in the environment.
-			err := Set(o.key, o.value)
+			err := os.Setenv(o.key, o.value)
 			if err != nil {
 				return err
 			}
