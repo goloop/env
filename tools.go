@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -302,55 +301,53 @@ func readParseStore(filename string, expand, update, forced bool) error {
 	}
 
 	// Read the file line by line and send it to the channel.
-	// The done channel informs about the end of reading
-	// the file and the existing reading error.
-	done := make(chan error)
-	go func() {
-		number := 0 // file line number
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			lines <- line{text: scanner.Text(), number: number}
-			number++
-		}
-		done <- scanner.Err()
-	}()
-
-	// Wait for the end of reading the file and check for errors.
-	err = <-done
+	number := 0 // file line number
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines <- line{text: scanner.Text(), number: number}
+		number++ // increment line number
+	}
 	close(lines)
-	if err != nil {
+
+	// Check for errors during reading the file.
+	if err := scanner.Err(); err != nil {
+		cancel()
 		return err
 	}
 
-	// Wait for all goroutines to finish and check for errors.
+	// Check for errors during parsing the file.
 	err = eg.Wait()
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}
 
-	// We save the results in a regular section for
-	// further sorting and processing.
-	var results []output
-	outputs.Range(func(_, value interface{}) bool {
-		results = append(results, value.(output))
-		return true
-	})
+	// We know the actual number of lines in the file,
+	// so the map can have the same number of identified records (or less).
+	//
+	// For expanded mode, it is very important to keep the sequence of
+	// strings to load into environment:
+	//
+	// KEY_0=VALUE_0
+	// KEY_1=${KEY_0}7
+	// KEY_0=VALUE_1 # overridden
+	//
+	// In this case, with expanded mode, the value of KEY_0 will be VALUE_1,
+	// but KEY_1 will be VALUE_07, because the value of KEY_0 is
+	// already loaded in the first row and KEY_1 is updated
+	// in the second row.
+	for i := 0; i < number; i++ {
+		o, ok := outputs.Load(i)
+		if !ok {
+			continue
+		}
 
-	// Sort the results by line number.
-	if expand {
-		sort.Slice(results, func(i, j int) bool {
-			return results[i].line.number < results[j].line.number
-		})
-	}
-
-	// Set the environment variables.
-	for _, o := range results {
-		if _, ok := os.LookupEnv(o.key); update || !ok {
-			if expand && o.expanded {
-				o.value = os.ExpandEnv(o.value)
+		item := o.(output) // convert to output type
+		if _, ok := os.LookupEnv(item.key); update || !ok {
+			if expand && item.expanded {
+				item.value = os.ExpandEnv(item.value)
 			}
 
-			err := os.Setenv(o.key, o.value)
+			err := os.Setenv(item.key, item.value)
 			if err != nil {
 				return err
 			}
