@@ -1,30 +1,378 @@
-[//]: # (!!!Don't modify the README.md, use `make readme` to generate it!!!)
-
-[![Go Report Card](https://goreportcard.com/badge/github.com/goloop/env)](https://goreportcard.com/report/github.com/goloop/env) [![License](https://img.shields.io/badge/license-BSD-blue)](https://github.com/goloop/env/blob/master/LICENSE) [![License](https://img.shields.io/badge/godoc-YES-green)](https://godoc.org/github.com/goloop/env)
-
-*Version: v1.0.1*
+[![Go Report Card](https://goreportcard.com/badge/github.com/goloop/env)](https://goreportcard.com/report/github.com/goloop/env) [![License](https://img.shields.io/badge/godoc-A+-brightgreen)](https://godoc.org/github.com/goloop/env) [![License](https://img.shields.io/badge/license-MIT-brightgreen)](https://github.com/goloop/env/blob/master/LICENSE)
 
 # env
 
-Package env implements various methods that allow storing environment variables
-in GoLang structures.
+The env package provides a variety of methods for managing environment variables. It supports loading data from `.env` files into the environment and provides data transfer between the environment and custom Go data structures, allowing you to effortlessly update structure fields from environment variables or vice versa, set environment variables from Go structure fields. The env package supports all standard Go data types (strings, numbers, boolean expressions, slices, arrays, etc.), as well as the complex `url.URL` type.
+
+## Features
+
+The main features of the env module include:
+
+- setting environment variables from variables defined in an env-file;
+- converting (marshaling) a Go structure to environment variables;
+- extracting (unmarshaling) environment variables to a Go structure;
+- setting any variables to the environment;
+- deleting variables from the environment;
+- checking for the presence of a variable in the environment;
+- retrieving the value of a variable by key from the environment;
+- clearing the environment.
+
+In addition, additional methods for working with `.env` files and data exchange between environment variables and the Go structs are implemented.
+
+The module provides synonyms for the standard methods from the os module, such as `Get` for `os.Getenv`, `Set` for `os.Setenv`, `Unset` for `os.Unsetenv`, `Clear` for `os.Clearenv`, and Environ for `os.Environ`, to manage the environment. Additionally, it implements custom methods that enable saving variables from the environment into structures.
+
+## Env-file supports
+
+The env package has full support for the syntax of `.env` files. Let's look at the basic rules for creating `.env` files supported by this package.
+
+To demonstrate how the env package works, we'll use almost identical code, where we'll only change the names and types of the fields that need to be loaded from the environment and the formatting of the output. Therefore, for all the examples in this section, we will use the basic code:
+
+```go
+// Demonstration of the env package.
+package main
+
+import (
+    "fmt"
+    "log"
+    "github.com/goloop/env"
+)
+
+// Environment is a structure for displaying data about the environment.
+// In a real project, this can be a structure like Config, Settings, etc.
+type Environment struct{}
+
+func main() {
+    // The prefix is used to filter the environment variables.
+    var prefix string = ""
+
+    // Load the environment variables from the .env file,
+    // and update the environment variables.
+    if err := env.Update(".env"); err != nil {
+    	log.Fatal(err)
+    }
+
+    // Unmarshal the environment variables into a structure.
+    // The object must be a pointer to a non-empty structure, so
+    // the default fieldless Environment structure isn`t appropriate.
+    e := Environment{}
+    if err := env.Unmarshal(prefix, &e); err != nil {
+    	log.Fatal(err)
+    }
+
+    // Print the structure.
+    fmt.Printf("%v\n", e)
+}
+```
+
+### Comments
+
+Comments in the `.env` file begin with the `#` symbol. Anything after the `#` will not be treated as an environment variable.
+
+```shell
+# Comment as a separate line.
+KEY_000="just a string here" # comment at the end of the expression
+KEY_001="here the # symbol is part of the value" # value contains # symbol
+
+# The file can contain empty lines to separate different blocks
+# of variables by value, and comments that can occupy several lines.
+
+KEY_002=33
+```
+
+This syntax is valid for the shell environment:
+
+```
+$ source .env
+$ echo -e "$KEY_000\n$KEY_001\n$KEY_002"
+just a string here
+here the # symbol is part of the value
+33
+```
+
+And is also valid for the env package:
+
+```go
+...
+type Environment struct {
+    Key000 string `env:"KEY_000"`
+    Key001 string `env:"KEY_001"`
+    Key002 int    `env:"KEY_002"`
+}
+
+...
+func main() {
+    ...
+    fmt.Printf("%v\n%v\n%v", e.Key000, e.Key001, e.Key002)
+    // Output:
+    // just a string here
+    // here the # symbol is part of the value
+    // 33
+}
+```
+
+### Variables
+
+Each line in the `.env` file must contain only one environment variable declaration expression. Strings containing more than one environment variable may not be parsed correctly.
+
+The example below will work correctly, but you shouldn't do it this way:
+
+```shell
+KEY_000=One
+KEY_001=Two KEY_002=Three # don't do that
+```
+
+This syntax is valid for the shell environment:
+
+```
+$ source .env
+$ echo -e "$KEY_000\n$KEY_001\n$KEY_002"
+One
+Two
+Three
+```
+
+And is also valid for the env package:
+
+```go
+...
+type Environment struct {
+    Key000 string `env:"KEY_000"`
+    Key001 string `env:"KEY_001"`
+    Key002 string `env:"KEY_002"`
+}
+
+...
+func main() {
+    ...
+    fmt.Printf("%v\n%v\n%v", e.Key000, e.Key001, e.Key002)
+    // Output:
+    // One
+    // Two
+    // Three
+}
+```
 
 
-## Package features
+The environment variable must meet the following requirements:
+- use only symbols of the Latin alphabet;
+- use uppercase to declare a variable;
+- to separate the words characterizing the variable, use the underscore character `_`;
+- the name of the variable cannot begin with a number or other symbol other than the Latin alphabet;
+- the variable can be declared after the export command.
 
-The module contains synonyms for the standard methods from the os module like: Get, Set, Unset, Clear, Environ etc., to manage of environment and implements a special methods which allow saves variables from environment to a structures.
+```shell
+# Bad variable names:
+# 010_KEY=5 # incorrect variable name
+lower=true # unwanted variable name
 
-The main features:
+# Good variable names:
+HOST=127.0.0.1 # short variable name
+ALLOWED_HOSTS=localhost,127.0.0.1 # multi-word variable name
+export PORT=8080
+```
 
-- set variables of environment from the variables of env-file;
-- convert (marshal) Go-structure to the variables of environment;
-- pack (unmarshal) variables of environment to the Go-structure;
-- set any variables to the environment;
-- delete variables from the environment;
-- determine the presence of a variable in the environment;
-- get value of variable by key from the environment;
-- cleaning environment.
+This syntax is valid for the shell environment:
 
+```
+$ source .env
+$ echo -e "$lower\n$HOST\n$ALLOWED_HOSTS\n$PORT"
+true
+127.0.0.1
+localhost,127.0.0.1
+8080
+```
+
+And is also valid for the env package:
+
+```go
+...
+type Environment struct {
+    // Key000    int      `env:"010_KEY"` # incorrect tag-name
+    Lower        bool     `env:"lower"`
+    Host         string   `env:"HOST"`
+    Port         int      `env:"PORT"`
+    AllowedHosts []string `env:"ALLOWED_HOSTS" sep:","`
+}
+
+...
+func main() {
+    ...
+    fmt.Printf("%v\n%v\n%v\n%v", e.Lower, e.Host, e.AllowedHosts, e.Port)
+    // Output:
+    // true
+    // 127.0.0.1
+    // [localhost 127.0.0.1]
+    // 8080
+}
+```
+
+### Values
+
+Rules for setting the value:
+- values are set after the `=` symbol;
+- if the value is a string that containing spaces, it must be enclosed in quotation marks.
+
+```shell
+USER=support # string without spaces
+CREDO="Do it well and reuse it" # string contains spaces
+AGE=35 # integer type
+WEIGHT=105.3 # float type
+LINKS=https://github.com/goloop,https://goloop.one
+EMAIL=$USER@goloop.one # concatenation with variables: goloop@gmail.com
+```
+
+This syntax is valid for the shell environment:
+
+```
+$ source .env
+$ echo -e "$USER\n$CREDO\n$AGE\n$WEIGHT\n$LINKS\n$EMAIL"
+support
+Do it well and reuse it
+35
+105.3
+https://github.com/goloop,https://goloop.one
+support@goloop.one
+```
+
+And is also valid for the env package:
+
+```go
+...
+type Environment struct {
+    User   string   `env:"USER"`
+    Age    int      `env:"AGE"`
+    Weight float32  `env:"WEIGHT"`
+    Links  []string `env:"LINKS" sep:","`
+    Email  string   `env:"EMAIL"`
+}
+
+...
+func main() {
+    ...
+    fmt.Printf("%v\n%v\n%v\n%v\n%v", e.User, e.Age, e.Weight, e.Links, e.Email)
+    // Output:
+    // support
+    // 35
+    // 105.3
+    // [https://github.com/goloop https://goloop.one]
+    // support@goloop.one
+}
+```
+
+
+### Prefixes
+
+One `.env` file can contain configuration data of different projects with the same names. Prefixes should be used to select project-specific configuration parameters.
+
+The following file contains settings for 3 services: `A`, `B`, `C`:
+
+```shell
+# Project A.
+PROJECT_A_HOST=192.168.0.1
+PROJECT_A_PORT=8081
+PROJECT_A_USER=john
+
+# Project B.
+PROJECT_B_HOST=192.168.0.2
+PROJECT_B_PORT=8082
+PROJECT_B_USER=bob
+
+# Project C.
+PROJECT_C_HOST=192.168.0.3
+PROJECT_C_PORT=8083
+PROJECT_C_USER=alan
+```
+
+For example, let's load project `B` data.
+
+Pay attention:
+
+- in the data structure, we do not specify the prefix, only the name of the variable;
+- use the `Unmarshal` method by passing the value of the prefix to it as the first argument.
+
+```go
+...
+type Environment struct {
+    Host string `env:"HOST"`
+    Port int    `env:"PORT"`
+    User string `env:"USER"`
+}
+...
+
+func main() {
+    var prefix string = "PROJECT_B_"
+    ...
+
+    fmt.Printf("%v\n%v\n%v", e.Host, e.Port, e.User)
+    // Output:
+    // 192.168.0.2
+    // 8082
+    // bob
+}
+```
+
+### Nested objects
+
+Data can be grouped into custom structures. For example:
+
+```shell
+# Project A.
+PROJECT_A_USERNAME=john
+PROJECT_A_PASSWORD=527bd5b5d689e2c32ae974c6229ff785
+PROJECT_A_USER_NAME="John Smith"
+PROJECT_A_USER_EMAIL=$PROJECT_A_USERNAME@gmail.com
+PROJECT_A_USER_RIGHTS_IS_STAFF=true
+PROJECT_A_USER_RIGHTS_IS_SUPERUSER=false
+
+# Project B.
+PROJECT_B_USERNAME=bob
+PROJECT_B_PASSWORD=9f9d51bc70ef21ca5c14f307980a29d8
+PROJECT_B_USER_NAME="Bob Dahn"
+PROJECT_B_USER_EMAIL=$PROJECT_A_USERNAME@gmail.com
+PROJECT_B_USER_RIGHTS_IS_STAFF=true
+PROJECT_B_USER_RIGHTS_IS_SUPERUSER=true
+```
+
+For example, let's load project `A` data.
+
+```go
+...
+type Rights struct {
+    IsStaff     bool `env:"IS_STAFF"`
+    IsSuperuser bool `env:"IS_SUPERUSER"`
+}
+
+type User struct {
+    Name   string `env:"NAME"`
+    Email  string `env:"EMAIL"`
+    Rights Rights `env:"RIGHTS"`
+}
+
+type Environment struct {
+    Username string `env:"USERNAME"`
+    Password string `env:"PASSWORD"`
+    User     User   `env:"USER"`
+}
+...
+
+func main() {
+    var prefix string = "PROJECT_A_"
+    ...
+
+    fmt.Printf("%v\n%v\n", e.Username, e.Password)
+    fmt.Printf("%v\n%v\n", e.User.Name, e.User.Email)
+    fmt.Printf("%v\n%v\n", e.User.Rights.IsStaff, e.User.Rights.IsSuperuser)
+    // Output:
+    // john
+    // 527bd5b5d689e2c32ae974c6229ff785
+    // John Smith
+    // john@gmail.com
+    // true
+    // false
+}
+```
+
+### Generalization
 
 The env-file can contain any environment valid constructions, for example:
 
@@ -32,7 +380,7 @@ The env-file can contain any environment valid constructions, for example:
 # Supported:
 # .................................................................
 # Comments as separate entries.
-KEY_000="value for key 000" # comment as part of the var declaration string
+KEY_000="value for key 000" # comment as part of the var declaration
 export KEY_001="value for key 001" # with export command
 KEY_002=one:two:three # list with default separators, colon
 KEY_003=one,two,three # ... or comma separator, or etc...
@@ -42,7 +390,7 @@ PREFIX_KEY_005="Bob" # prefix filtering
 
 # Empty line (up/down).
 
-KEY_006=one,"two,three",four # grouped values as one | two,three | four
+KEY_006=one,"two,three",four # grouped values as: one|two,three|four
 KEY_007=${KEY_005}00$KEY_004 # concatenation with variables: John007
 
 KEY_008_LABEL="Service A" # deep embedded field
@@ -56,7 +404,6 @@ PREFIX_KEY_008_LABEL="Service B" # deep embedded field with prefix
 ```
 
 ## Installation
-
 To install the package you can use `go get`:
 
 ```
@@ -65,15 +412,38 @@ $ go get -u github.com/goloop/env
 
 
 ## Usage
-
 To use this module import it as:
 
 ```go
 import "github.com/goloop/env"
 ```
 
-
 ## Quick start
+
+There are several ways of using this package.
+
+- transfer variables from env-files to the environment;
+- transfer data from the environment into Go structures;
+- saving Go structure's fields to the environment.
+- saving Go structure's fields to the env files.
+
+### Parsing env files
+
+Parsing of env-files takes place in concurrency mode, runtime.NumCPU() is used by default for the number of goroutines.
+
+To change the number of goroutines you need to use the `ParallelTasks` method.
+
+
+There are several methods for parsing env files:
+
+- `Load` loads new keys only;
+- `LoadSafe` loads new keys only and doesn't handles variables like `${var}` or `$var` - doesn't turn them into a finite value;
+- `Update` loads keys from the env-file into environment, update existing keys;
+- `UpdateSafe` loads keys from the env-file into environment, update existing keys, and doesn't handles variables like `${var}` or `$var` - doesn't turn them into a finite value.
+
+The `Update` function works like the `source` command in UNIX-Like operating systems.
+
+
 
 Let's marshal the env-file presented above to Go-structure.
 
@@ -128,9 +498,9 @@ func main() {
 Use the following tags in the fields of structure to
 set the unmarshing parameters:
 
- - **env**  matches the name of the key in the environment;
- - **def**  default value (if empty, sets the default value for the field type of structure);
- - **sep**  sets the separator for lists/arrays (default ` ` - space).
+ - env - matches the name of the key in the environment;
+ - def - default value (if empty, sets the default value for the field type of structure);
+ - sep - sets the separator for lists/arrays (default ` ` - space).
 
 ### Examples
 
@@ -212,509 +582,3 @@ func main() {
 	//  Allowed hosts: [localhost 127.0.0.1]
 }
 ```
-## Usage
-
-#### func  Clear
-
-    func Clear()
-
-Clear is synonym for the os.Clearenv, deletes all environment variables.
-
-#### func  Environ
-
-    func Environ() []string
-
-Environ is synonym for the os.Environ, returns a copy of strings representing
-the environment, in the form "key=value".
-
-#### func  Exists
-
-    func Exists(keys ...string) bool
-
-Exists returns true if all given keys exists in the environment.
-
-
-Examples
-
-In this example, some variables are already set in the environment:
-
-    $ env | grep KEY_0
-    KEY_0=VALUE_DEF
-
-Configuration file `.env` contains:
-
-    LAST_ID=002
-    KEY_0=VALUE_000
-    KEY_1=VALUE_001
-    KEY_2=VALUE_${LAST_ID}
-
-Check if a variable exists in the environment:
-
-     fmt.Printf("KEY_0 is %v\n", env.Exists("KEY_0"))
-     fmt.Printf("KEY_1 is %v\n", env.Exists("KEY_1"))
-     fmt.Printf("KEY_0 and KEY_1 is %v\n\n", env.Exists("KEY_0", "KEY_1"))
-
-     if err := env.Update("./cmd/.env"); err != nil {
-       log.Fatal(err)
-     }
-
-    	fmt.Printf("KEY_0 is %v\n", env.Exists("KEY_0"))
-    	fmt.Printf("KEY_1 is %v\n", env.Exists("KEY_1"))
-    	fmt.Printf("KEY_0 and KEY_1 is %v\n", env.Exists("KEY_0", "KEY_1"))
-
-    	// Output:
-    	//  KEY_0 is true
-    	//  KEY_1 is false
-    	//  KEY_0 and KEY_1 is false
-    	//
-    	//  KEY_0 is true
-    	//  KEY_1 is true
-    	//  KEY_0 and KEY_1 is true
-
-#### func  Expand
-
-    func Expand(value string) string
-
-Expand is synonym for the os.Expand, replaces ${var} or $var in the string
-according to the values of the current environment variables. References to
-undefined variables are replaced by the empty string.
-
-#### func  Get
-
-    func Get(key string) string
-
-Get is synonym for the os.Getenv, retrieves the value of the environment
-variable named by the key. It returns the value, which will be empty if the
-variable is not present.
-
-To distinguish between an empty value and an unset value, use Lookup.
-
-#### func  Load
-
-    func Load(filename string) error
-
-Load loads new keys only (without updating existing keys) from env-file into
-environment. Handles variables like ${var} or $var in the value, replacing them
-with a real result.
-
-Returns an error if the env-file contains incorrect data, file is damaged or
-missing.
-
-
-Examples
-
-In this example, some variables are already set in the environment:
-
-    $ env | grep KEY_0
-    KEY_0=VALUE_DEF
-
-Configuration file `.env` contains:
-
-    LAST_ID=002
-    KEY_0=VALUE_000
-    KEY_1=VALUE_001
-    KEY_2=VALUE_${LAST_ID}
-
-Load values from configuration file into environment:
-
-    if err := env.Load(".env"); err != nil {
-        log.Fatal(err)
-    }
-
-    fmt.Printf("LAST_ID=%s\n", env.Get("LAST_ID"))
-    fmt.Printf("KEY_0=%s\n", env.Get("KEY_0"))
-    fmt.Printf("KEY_1=%s\n", env.Get("KEY_1"))
-    fmt.Printf("KEY_2=%s\n", env.Get("KEY_2"))
-    // Output:
-    //  LAST_ID=002
-    //  KEY_0=VALUE_DEF
-    //  KEY_1=VALUE_001
-    //  KEY_2=VALUE_002
-
-Where:
-
-    - KEY_0 - has not been replaced by VALUE_000;
-    - KEY_1 - loaded new value;
-    - KEY_2 - loaded new value and replaced ${LAST_ID}
-              to the value from environment.
-
-#### func  LoadSafe
-
-    func LoadSafe(filename string) error
-
-LoadSafe loads new keys only (without updating existing keys) from env-file into
-environment. Doesn't handles variables like ${var} or $var - doesn't turn them
-into a finite value.
-
-Returns an error if the env-file contains incorrect data, file is damaged or
-missing.
-
-
-Examples
-
-In this example, some variables are already set in the environment:
-
-    $ env | grep KEY_0
-    KEY_0=VALUE_DEF
-
-Configuration file `.env` contains:
-
-    LAST_ID=002
-    KEY_0=VALUE_000
-    KEY_1=VALUE_001
-    KEY_2=VALUE_${LAST_ID}
-
-Load values from configuration file into environment:
-
-    if err := env.LoadSafe(".env"); err != nil {
-        log.Fatal(err)
-    }
-
-    fmt.Printf("LAST_ID=%s\n", env.Get("LAST_ID"))
-    fmt.Printf("KEY_0=%s\n", env.Get("KEY_0"))
-    fmt.Printf("KEY_1=%s\n", env.Get("KEY_1"))
-    fmt.Printf("KEY_2=%s\n", env.Get("KEY_2"))
-    // Output:
-    //  LAST_ID=002
-    //  KEY_0=VALUE_DEF
-    //  KEY_1=VALUE_001
-    //  KEY_2=VALUE_${LAST_ID}
-
-Where:
-
-    - KEY_0 - has not been replaced by VALUE_000;
-    - KEY_1 - loaded new value;
-    - KEY_2 - loaded new value but doesn't replace ${LAST_ID}
-              to the value from environment.
-
-#### func  Lookup
-
-    func Lookup(key string) (string, bool)
-
-Lookup is synonym for the os.LookupEnv, retrieves the value of the environment
-variable named by the key. If the variable is present in the environment the
-value (which may be empty) is returned and the boolean is true. Otherwise the
-returned value will be empty and the boolean will be false.
-
-#### func  Marshal
-
-    func Marshal(prefix string, scope interface{}) ([]string, error)
-
-Marshal converts the structure in to key/value and put it into environment with
-update old values. As the first value returns a list of keys that were correctly
-sets in the environment and nil or error information as second value.
-
-If the obj isn't a pointer to struct, struct or has fields of unsupported types
-will be returned an error.
-
-Method supports the following type of the fields: int, int8, int16, int32,
-int64, uin, uint8, uin16, uint32, in64, float32, float64, string, bool, struct,
-url.URL and pointers, array or slice from thous types (i.e. *int, *uint, ...,
-[]int, ..., []bool, ..., [2]*url.URL, etc.). The fields as a struct or pointer
-on the struct will be processed recursively.
-
-If the structure implements Marshaler interface - the custom MarshalEnv method
-will be called.
-
-Use the following tags in the fields of structure to set the marshing
-parameters:
-
-    env  matches the name of the key in the environment;
-    def  default value (if empty, sets the default value
-         for the field type of structure);
-    sep  sets the separator for lists/arrays (default ` ` - space).
-
-Structure example:
-
-    // Config structure for containing values from the environment.
-    type Config struct {
-    	Host         string   `env:"HOST"`
-    	Port         int      `env:"PORT" def:"80"`
-    	AllowedHosts []string `env:"ALLOWED_HOSTS" sep:":"`
-    }
-
-Marshal data into environment from the Config.
-
-    var config = Config{
-    	"localhost",
-    	8080,
-    	[]string{"localhost", "127.0.0.1"},
-    }
-
-    if _, err := env.Marshal("", config); err != nil {
-    	log.Fatal(err)
-    }
-
-    fmt.Printf("Host: %v\n", env.Get("HOST"))
-    fmt.Printf("Port: %v\n", env.Get("PORT"))
-    fmt.Printf("AllowedHosts: %v\n", env.Get("ALLOWED_HOSTS"))
-    // Output:
-    //  Host: localhost
-    //  Port: 8080
-    //  AllowedHosts: localhost:127.0.0.1
-
-If the object has MarshalEnv and is not a nil pointer - will call its method to
-marshaling.
-
-    // MarshalEnv it's custom method for marshalling.
-    func (c *Config) MarshalEnv() ([]string, error) {
-    	env.Set("HOST", "192.168.0.1")
-    	env.Set("PORT", "80")
-    	env.Set("ALLOWED_HOSTS", "192.168.0.1")
-    	return []string{"HOST", "PORT", "ALLOWED_HOSTS"}, nil
-    }
-
-    ...
-
-    // Output:
-    //  Host: 192.168.0.1
-    //  Port: 80
-    //  AllowedHosts: 192.168.0.1
-
-#### func  Save
-
-    func Save(filename, prefix string, obj interface{}) error
-
-Save saves the object to a file without changing the environment.
-
-
-Example
-
-There is some configuration structure:
-
-    // Config it's struct of the server configuration.
-    type Config struct {
-    	Host         string   `env:"HOST"`
-    	Port         int      `env:"PORT"`
-    	AllowedHosts []string `env:"ALLOWED_HOSTS" sep:":"` // parse by `:`.
-    }
-
-...
-
-    var config = Config{
-    	Host:         "localhost",
-    	Port:         8080,
-    	AllowedHosts: []string{"localhost", "127.0.0.1"},
-    }
-    env.Save("/tmp/.env", "", config)
-
-The result in the file /tmp/.env
-
-    HOST=localhost
-    PORT=8080
-    ALLOWED_HOSTS=localhost:127.0.0.1
-
-#### func  Set
-
-    func Set(key, value string) error
-
-Set is synonym for the os.Setenv, sets the value of the environment variable
-named by the key. It returns an error, if any.
-
-#### func  Unmarshal
-
-    func Unmarshal(prefix string, obj interface{}) error
-
-Unmarshal parses data from the environment and store result into Go-structure
-that passed by pointer. If the obj isn't a pointer to struct or has fields of
-unsupported types will be returned an error.
-
-Method supports the following type of the fields: int, int8, int16, int32,
-int64, uin, uint8, uin16, uint32, in64, float32, float64, string, bool, struct,
-url.URL and pointers, array or slice from thous types (i.e. *int, *uint, ...,
-[]int, ..., []bool, ..., [2]*url.URL, etc.). The fields as a struct or pointer
-on the struct will be processed recursively.
-
-If the structure implements Unmarshaler interface - the custom UnmarshalEnv
-method will be called.
-
-Use the following tags in the fields of structure to set the unmarshing
-parameters:
-
-    env  matches the name of the key in the environment;
-    def  default value (if empty, sets the default value
-         for the field type of structure);
-    sep  sets the separator for lists/arrays (default ` ` - space).
-
-
-Examples
-
-Some keys was set into environment as:
-
-    $ export HOST="0.0.0.0"
-    $ export PORT=8080
-    $ export ALLOWED_HOSTS=localhost:127.0.0.1
-    $ export SECRET_KEY=AgBsdjONL53IKa33LM9SNROvD3hZXfoz
-
-Structure example:
-
-    // Config structure for containing values from the environment.
-    // P.s. There is no need to describe all the keys in the environment,
-    // for example, we ignore the SECRET_KEY key.
-    type Config struct {
-    	Host         string   `env:"HOST"`
-    	Port         int      `env:"PORT" def:"80"`
-    	AllowedHosts []string `env:"ALLOWED_HOSTS" sep:":"`
-    }
-
-Unmarshal data from the environment into Config structure.
-
-    var config Config
-    if err := env.Unmarshal("", &config); err != nil {
-    	log.Fatal(err)
-    }
-
-    fmt.Printf("Host: %v\n", config.Host)
-    fmt.Printf("Port: %v\n", config.Port)
-    fmt.Printf("AllowedHosts: %v\n", config.AllowedHosts)
-    // Output:
-    //  Host: 0.0.0.0
-    //  Port: 8080
-    //  AllowedHosts: [localhost 127.0.0.1]
-
-If the structure will has custom UnmarshalEnv it will be called:
-
-    // UnmarshalEnv it's custom method for unmarshalling.
-    func (c *Config) UnmarshalEnv() error {
-        c.Host = "192.168.0.1"
-        c.Port = 80
-        c.AllowedHosts = []string{"192.168.0.1"}
-        return nil
-    }
-
-    ...
-
-    // Output:
-    //  Host: 192.168.0.1
-    //  Port: 80
-    //  AllowedHosts: [192.168.0.1]
-
-#### func  Unset
-
-    func Unset(key string) error
-
-Unset is synonym for the os.Unsetenv, unsets a single environment variable.
-
-#### func  Update
-
-    func Update(filename string) error
-
-Update loads keys from the env-file into environment, update existing keys.
-Handles variables like ${var} or $var in the value, replacing them with a real
-result.
-
-Returns an error if the env-file contains incorrect data, file is damaged or
-missing.
-
-
-Examples
-
-In this example, some variables are already set in the environment:
-
-    $ env | grep KEY_0
-    KEY_0=VALUE_DEF
-
-Configuration file `.env` contains:
-
-    LAST_ID=002
-    KEY_0=VALUE_000
-    KEY_1=VALUE_001
-    KEY_2=VALUE_${LAST_ID}
-
-Load values from configuration file into environment:
-
-    if err := env.Update(".env"); err != nil {
-        log.Fatal(err)
-    }
-
-    fmt.Printf("LAST_ID=%s\n", env.Get("LAST_ID"))
-    fmt.Printf("KEY_0=%s\n", env.Get("KEY_0"))
-    fmt.Printf("KEY_1=%s\n", env.Get("KEY_1"))
-    fmt.Printf("KEY_2=%s\n", env.Get("KEY_2"))
-    // Output:
-    //  LAST_ID=002
-    //  KEY_0=VALUE_000
-    //  KEY_1=VALUE_001
-    //  KEY_2=VALUE_002
-
-Where:
-
-    - KEY_0 - replaced VALUE_DEF on VALUE_000;
-    - KEY_1 - loaded new value;
-    - KEY_2 - loaded new value and replaced ${LAST_ID}
-              to the value from environment.
-
-#### func  UpdateSafe
-
-    func UpdateSafe(filename string) error
-
-UpdateSafe loads keys from the env-file into environment, update existing keys.
-Doesn't handles variables like ${var} or $var - doesn't turn them into a finite
-value.
-
-Returns an error if the env-file contains incorrect data, file is damaged or
-missing.
-
-
-Examples
-
-In this example, some variables are already set in the environment:
-
-    $ env | grep KEY_0
-    KEY_0=VALUE_DEF
-
-Configuration file `.env` contains:
-
-    LAST_ID=002
-    KEY_0=VALUE_000
-    KEY_1=VALUE_001
-    KEY_2=VALUE_${LAST_ID}
-
-Load values from configuration file into environment:
-
-    if err := env.Update(".env"); err != nil {
-        log.Fatal(err)
-    }
-
-    fmt.Printf("LAST_ID=%s\n", env.Get("LAST_ID"))
-    fmt.Printf("KEY_0=%s\n", env.Get("KEY_0"))
-    fmt.Printf("KEY_1=%s\n", env.Get("KEY_1"))
-    fmt.Printf("KEY_2=%s\n", env.Get("KEY_2"))
-    // Output:
-    //  LAST_ID=002
-    //  KEY_0=VALUE_000
-    //  KEY_1=VALUE_001
-    //  KEY_2=VALUE_${LAST_ID}
-
-Where:
-
-    - KEY_0 - replaced VALUE_DEF on VALUE_000;
-    - KEY_1 - loaded new value;
-    - KEY_2 - loaded new value but doesn't replace ${LAST_ID}
-              to the value from environment.
-
-#### func  Version
-
-    func Version() string
-
-Version returns the version of the module.
-
-#### type Marshaler
-
-    type Marshaler interface {
-    	MarshalEnv() ([]string, error)
-    }
-
-
-Marshaler is the interface implemented by types that can marshal themselves into
-valid object.
-
-#### type Unmarshaler
-
-    type Unmarshaler interface {
-    	UnmarshalEnv() error
-    }
-
-
-Unmarshaler is the interface implements by types that can unmarshal an
-environment variables of themselves.
