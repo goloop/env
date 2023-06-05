@@ -6,10 +6,3 @@
 // structure fields. The env package supports all standard data types, as well
 // as the url.URL type.
 package env
-
-const version = "1.0.1"
-
-// Version returns the version of the module.
-func Version() string {
-	return "v" + version
-}
