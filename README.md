@@ -8,14 +8,14 @@ The env package provides a variety of methods for managing environment variables
 
 The main features of the env module include:
 
-- setting environment variables from variables defined in an env-file;
-- converting (marshaling) a Go structure to environment variables;
-- extracting (unmarshaling) environment variables to a Go structure;
-- setting any variables to the environment;
-- deleting variables from the environment;
-- checking for the presence of a variable in the environment;
-- retrieving the value of a variable by key from the environment;
-- clearing the environment.
+  - setting environment variables from variables defined in an env-file;
+  - converting (marshaling) a Go structure to environment variables;
+  - extracting (unmarshaling) environment variables to a Go structure;
+  - setting any variables to the environment;
+  - deleting variables from the environment;
+  - checking for the presence of a variable in the environment;
+  - retrieving the value of a variable by key from the environment;
+  - clearing the environment.
 
 In addition, additional methods for working with `.env` files and data exchange between environment variables and the Go structs are implemented.
 
@@ -154,11 +154,12 @@ func main() {
 
 
 The environment variable must meet the following requirements:
-- use only symbols of the Latin alphabet;
-- use uppercase to declare a variable;
-- to separate the words characterizing the variable, use the underscore character `_`;
-- the name of the variable cannot begin with a number or other symbol other than the Latin alphabet;
-- the variable can be declared after the export command.
+
+  - use only symbols of the Latin alphabet;
+  - use uppercase to declare a variable;
+  - to separate the words characterizing the variable, use the underscore character `_`;
+  - the name of the variable cannot begin with a number or other symbol other than the Latin alphabet;
+  - the variable can be declared after the export command.
 
 ```shell
 # Bad variable names:
@@ -209,8 +210,8 @@ func main() {
 ### Values
 
 Rules for setting the value:
-- values are set after the `=` symbol;
-- if the value is a string that containing spaces, it must be enclosed in quotation marks.
+  - values are set after the `=` symbol;
+  - if the value is a string that containing spaces, it must be enclosed in quotation marks.
 
 ```shell
 USER=support # string without spaces
@@ -287,8 +288,8 @@ For example, let's load project `B` data.
 
 Pay attention:
 
-- in the data structure, we do not specify the prefix, only the name of the variable;
-- use the `Unmarshal` method by passing the value of the prefix to it as the first argument.
+  - in the data structure, we do not specify the prefix, only the name of the variable;
+  - use the `Unmarshal` method by passing the value of the prefix to it as the first argument.
 
 ```go
 ...
@@ -422,10 +423,10 @@ import "github.com/goloop/env"
 
 There are several ways of using this package.
 
-- transfer variables from env-files to the environment;
-- transfer data from the environment into Go structures;
-- saving Go structure's fields to the environment.
-- saving Go structure's fields to the env files.
+  - transfer variables from env-files to the environment;
+  - transfer data from the environment into Go structures;
+  - saving Go structure's fields to the environment;
+  - saving Go structure's fields to the env files.
 
 ### Parsing env files
 
@@ -436,10 +437,10 @@ To change the number of goroutines you need to use the `ParallelTasks` method.
 
 There are several methods for parsing env files:
 
-- `Load` loads new keys only;
-- `LoadSafe` loads new keys only and doesn't handles variables like `${var}` or `$var` - doesn't turn them into a finite value;
-- `Update` loads keys from the env-file into environment, update existing keys;
-- `UpdateSafe` loads keys from the env-file into environment, update existing keys, and doesn't handles variables like `${var}` or `$var` - doesn't turn them into a finite value.
+  - `Load` loads new keys only;
+  - `LoadSafe` loads new keys only and doesn't handles variables like `${var}` or `$var` - doesn't turn them into a finite value;
+  - `Update` loads keys from the env-file into environment, update existing keys;
+  - `UpdateSafe` loads keys from the env-file into environment, update existing keys, and doesn't handles variables like `${var}` or `$var` - doesn't turn them into a finite value.
 
 The `Update` function works like the `source` command in UNIX-Like operating systems.
 
@@ -578,7 +579,7 @@ func main() {
 	)
 	log.Fatal(http.ListenAndServe(config.Addr(), nil))
 	// Output:
-	//  Server started on 0.0.0.0:0
+	//  Server started on 0.0.0.0:8080
 	//  Allowed hosts: [localhost 127.0.0.1]
 }
 ```
