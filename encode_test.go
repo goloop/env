@@ -18,7 +18,7 @@ type configEncode struct {
 
 // MarshalEnv the custom method for marshalling.
 func (c *configEncode) MarshalEnv() ([]string, error) {
-	var tests = [][]string{
+	tests := [][]string{
 		{"HOST", "192.168.0.1"},
 		{"PORT", "80"},
 		{"ALLOWED_HOSTS", "localhost"},
@@ -48,7 +48,7 @@ func (c *configEncodeErr) MarshalEnv() ([]string, error) {
 
 // TestUnmarshalEnvCustomMarshalErr tests custom marshalEnv with error.
 func TestUnmarshalEnvCustomMarshalErr(t *testing.T) {
-	var data = configEncodeErr{}
+	data := configEncodeErr{}
 	if _, err := marshalEnv("", data, false); err == nil {
 		t.Error("an error is expected for nil object")
 	}
@@ -77,7 +77,7 @@ func TestMarshalEnvDefaultKeyName(t *testing.T) {
 
 // TestMarshalEnvInvalidKey tests marshalEnv with invalid key name.
 func TestMarshalEnvInvalidKey(t *testing.T) {
-	var data = struct {
+	data := struct {
 		Host string `env:"HO$T"`
 	}{}
 
@@ -105,7 +105,7 @@ func TestMarshalNotStruct(t *testing.T) {
 
 // TestMarshalEnv tests marshalEnv function with struct value.
 func TestMarshalEnv(t *testing.T) {
-	var data = struct {
+	data := struct {
 		Host         string    `env:"HOST"`
 		Port         int       `env:"PORT"`
 		AllowedHosts []string  `env:"ALLOWED_HOSTS" sep:"!"`
@@ -147,7 +147,7 @@ func TestMarshalEnv(t *testing.T) {
 
 // TestMarshalEnvPtr tests marshalEnv function for pointer of the struct value.
 func TestMarshalEnvPtr(t *testing.T) {
-	var data = &struct {
+	data := &struct {
 		Host         string    `env:"HOST"`
 		Port         int       `env:"PORT"`
 		AllowedHosts []string  `env:"ALLOWED_HOSTS" sep:"!"`
@@ -189,7 +189,7 @@ func TestMarshalEnvPtr(t *testing.T) {
 // TestMarshalEnvCustom tests marshalEnv function for object
 // with custom MarshalEnv method.
 func TestMarshalEnvCustom(t *testing.T) {
-	var data = configEncode{
+	data := configEncode{
 		"localhost",                        // default: 192.168.0.1
 		8080,                               // default: 80
 		[]string{"localhost", "127.0.0.1"}, // default: 192.168.0.1
@@ -220,7 +220,7 @@ func TestMarshalEnvCustom(t *testing.T) {
 // TestMarshalEnvCustomPtr tests marshalEnv function for pointer
 // with custom MarshalEnv method.
 func TestMarshalEnvCustomPtr(t *testing.T) {
-	var scope = &configEncode{
+	scope := &configEncode{
 		"localhost",                        // default: 192.168.0.1
 		8080,                               // default: 80
 		[]string{"localhost", "127.0.0.1"}, // default: 192.168.0.1
@@ -259,8 +259,8 @@ func TestMarshalEnvURL(t *testing.T) {
 		KeyURLPointArray [2]*url.URL `env:"KEY_URL_POINT_ARRAY" sep:"!"`
 	}
 
-	//var test string
-	var data = URLTestType{
+	// var test string
+	data := URLTestType{
 		KeyURLPlain: url.URL{Scheme: "http", Host: "plain.goloop.one"},
 		KeyURLPoint: &url.URL{Scheme: "http", Host: "point.goloop.one"},
 		KeyURLPlainSlice: []url.URL{
@@ -290,7 +290,7 @@ func TestMarshalEnvURL(t *testing.T) {
 	expected := "http://plain.goloop.one"
 	if v := Get("KEY_URL_PLAIN"); v != expected {
 		t.Errorf("expected %s but %s", expected, v)
-		//t.Errorf("Incorrect marshaling plain url.URL: %s", v)
+		// t.Errorf("Incorrect marshaling plain url.URL: %s", v)
 	}
 
 	expected = "http://point.goloop.one"
@@ -302,7 +302,7 @@ func TestMarshalEnvURL(t *testing.T) {
 	expected = "http://a.plain.goloop.one!http://b.plain.goloop.one"
 	if v := Get("KEY_URL_PLAIN_SLICE"); v != expected {
 		t.Errorf("expected %s but %s", expected, v)
-		//t.Errorf("Incorrect marshaling poin slice []url.URL: %s", v)
+		// t.Errorf("Incorrect marshaling poin slice []url.URL: %s", v)
 	}
 
 	// Point slice.
@@ -340,7 +340,7 @@ func TestMarshalEnvStruct(t *testing.T) {
 		HomePage url.URL `env:"HOME_PAGE"`
 	}
 
-	var data = client{
+	data := client{
 		User: user{
 			Name: "John",
 			Address: address{
@@ -390,7 +390,7 @@ func TestMarshalEnvStructPtr(t *testing.T) {
 		HomePage *url.URL `env:"HOME_PAGE"`
 	}
 
-	var data = client{
+	data := client{
 		User: &user{
 			Name: "John",
 			Address: &address{
