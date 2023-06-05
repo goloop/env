@@ -27,9 +27,9 @@ type Marshaler interface {
 func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
 	var result []string
 
-	// Note: Convert *object to object and mean that we use
+	// Convert *object to object and mean that we use
 	// reflection on the object but not a pointer on it.
-	var rt, rv = reflect.TypeOf(obj), reflect.ValueOf(obj)
+	rt, rv := reflect.TypeOf(obj), reflect.ValueOf(obj)
 	if rt.Kind() == reflect.Ptr {
 		rt = rt.Elem()
 		rv = rv.Elem()
@@ -42,8 +42,7 @@ func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
 
 	// Get a pointer to the object.
 	ptr := reflect.New(rt)
-	tmp := ptr.Elem()
-	tmp.Set(rv)
+	ptr.Elem().Set(rv)
 
 	// Implements Marshaler interface.
 	if ptr.Type().Implements(reflect.TypeOf((*Marshaler)(nil)).Elem()) {
@@ -66,7 +65,7 @@ func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
 
 		// Get parameters from tags.
 		// The name of the key.
-		key := strings.Trim(field.Tag.Get(tagNameKey), " ")
+		key := strings.TrimSpace(field.Tag.Get(tagNameKey))
 		if key == "" {
 			key = field.Name
 		}
@@ -145,12 +144,11 @@ func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
 	return result, nil
 }
 
-// getSequence get sequence as string.
+// The getSequence get sequence as string.
 func getSequence(item *reflect.Value, sep string) (string, error) {
 	var (
-		result string
-		kind   reflect.Kind
-		max    int
+		kind reflect.Kind
+		max  int
 	)
 
 	// Type checking and instance adjustment.
@@ -166,14 +164,13 @@ func getSequence(item *reflect.Value, sep string) (string, error) {
 		return "", fmt.Errorf("incorrect type: %s", item.Type())
 	}
 
-	// Item list string display.
-	result = strings.Replace(fmt.Sprint(*item), " ", sep, -1)
+	// Use strings.Builder for efficient string concatenation.
+	var sb strings.Builder
 
 	// For pointers and structures.
 	if kind == reflect.Ptr || kind == reflect.Struct {
-		var tmp = []string{}
 		for i := 0; i < max; i++ {
-			var elem = item.Index(i)
+			elem := item.Index(i)
 			if kind == reflect.Ptr {
 				elem = item.Index(i).Elem()
 			}
@@ -183,42 +180,49 @@ func getSequence(item *reflect.Value, sep string) (string, error) {
 				return "", err
 			}
 
-			tmp = append(tmp, v)
+			if i > 0 {
+				sb.WriteString(sep)
+			}
+			sb.WriteString(v)
 		}
-		result = strings.Replace(fmt.Sprint(tmp), " ", sep, -1)
+	} else {
+		for i := 0; i < max; i++ {
+			v, err := toStr(item.Index(i))
+			if err != nil {
+				return "", err
+			}
+
+			if i > 0 {
+				sb.WriteString(sep)
+			}
+			sb.WriteString(v)
+		}
 	}
 
-	return strings.Trim(result, "[]"+sep), nil
+	return sb.String(), nil
 }
 
-// toStr converts item to string.
+// The toStr converts any item to string.
 func toStr(item reflect.Value) (string, error) {
-	var value string
-
-	kind := item.Kind()
-	switch kind {
+	switch item.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16,
 		reflect.Int32, reflect.Int64:
-		value = fmt.Sprintf("%d", item.Int())
+		return fmt.Sprintf("%d", item.Int()), nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16,
 		reflect.Uint32, reflect.Uint64:
-		value = fmt.Sprintf("%d", item.Uint())
+		return fmt.Sprintf("%d", item.Uint()), nil
 	case reflect.Float32, reflect.Float64:
-		value = fmt.Sprintf("%f", item.Float())
+		return fmt.Sprintf("%f", item.Float()), nil
 	case reflect.Bool:
-		value = fmt.Sprintf("%t", item.Bool())
+		return fmt.Sprintf("%t", item.Bool()), nil
 	case reflect.String:
-		value = item.String()
+		return item.String(), nil
 	case reflect.Struct:
 		// Support for url.URL struct only.
 		if u, ok := item.Interface().(url.URL); ok {
-			value = u.String()
-			break
+			return u.String(), nil
 		}
-		fallthrough
-	default:
-		return "", fmt.Errorf("incorrect type: %s", item.Type())
 	}
 
-	return value, nil
+	return "", fmt.Errorf("incorrect type: %s", item.Type())
 }

@@ -103,7 +103,7 @@ func TestUpdateSafe(t *testing.T) {
 
 // TestExists tests Exists function.
 func TestExist(t *testing.T) {
-	var tests = [][]string{
+	tests := [][]string{
 		{"KEY_0", "default"},
 		{"KEY_1", "default"},
 	}
@@ -128,7 +128,7 @@ func TestExist(t *testing.T) {
 
 // TestSave tests Save function.
 func TestSave(t *testing.T) {
-	var data = struct {
+	data := struct {
 		Host string `env:"HOST"`
 		Port int    `env:"PORT"`
 	}{
