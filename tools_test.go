@@ -9,7 +9,7 @@ import (
 
 // TestSts tests convert slice to string.
 func TestSts(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		value  interface{}
 		result string
 		sep    string
@@ -31,7 +31,7 @@ func TestSts(t *testing.T) {
 
 // TestFts tests fts function.
 func TestFts(t *testing.T) {
-	var data = struct {
+	data := struct {
 		KeyA uint8
 		KeyB int64
 		KeyC []string
@@ -68,7 +68,7 @@ func TestLoadReadParseStoreOpen(t *testing.T) {
 // TestReadParseStoreExported checks the parsing of the
 // env-file with the `export` command.
 func TestReadParseStoreExported(t *testing.T) {
-	var tests = map[string]string{
+	tests := map[string]string{
 		"KEY_0": "value 0",
 		"KEY_1": "value 1",
 		"KEY_2": "value_2",
@@ -93,7 +93,7 @@ func TestReadParseStoreExported(t *testing.T) {
 // TestReadParseStoreComments checks the parsing of the
 // env-file with the comments and empty strings.
 func TestReadParseStoreComments(t *testing.T) {
-	var tests = map[string]string{
+	tests := map[string]string{
 		"KEY_0": "value 0",
 		"KEY_1": "value 1",
 		"KEY_2": "value_2",
@@ -138,8 +138,8 @@ func TestReadParseStoreWorngEqualValue(t *testing.T) {
 // TestReadParseStoreIgnoreWorngEntry tests to force loading with
 // the incorrect lines.
 func TestReadParseStoreIgnoreWorngEntry(t *testing.T) {
-	var forced = true
-	var tests = map[string]string{
+	forced := true
+	tests := map[string]string{
 		"KEY_0": "value_0",
 		"KEY_1": "value_1",
 		"KEY_4": "value_4",
@@ -165,8 +165,8 @@ func TestReadParseStoreIgnoreWorngEntry(t *testing.T) {
 
 // TestReadParseStoreVariables tests replacing variables on real values.
 func TestReadParseStoreVariables(t *testing.T) {
-	var expand = true
-	var tests = map[string]string{
+	expand := true
+	tests := map[string]string{
 		"KEY_0": "value_0",
 		"KEY_1": "value_1",
 		"KEY_2": "value_001",
@@ -216,7 +216,7 @@ func TestReadParseStoreNotUpdate(t *testing.T) {
 
 // TestReadParseStoreUpdate tests variable update.
 func TestReadParseStoreUpdate(t *testing.T) {
-	var update = true
+	update := true
 
 	// Set empty string
 	os.Clearenv()
@@ -240,7 +240,7 @@ func TestReadParseStoreUpdate(t *testing.T) {
 // the position of the marker inside of the group: `...`, '...', "..."
 // and (...), {...}, [...].
 func TestSplitN(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		n      int
 		value  string
 		result []string
@@ -264,10 +264,10 @@ func TestSplitN(t *testing.T) {
 	}
 
 	for i, s := range tests {
-        tmp := splitN(s.value, ",", s.n);
-        r1, _ := sts(tmp, ":")
-        r2, _ := sts(s.result, ":")
-		if r1 != r2  {
+		tmp := splitN(s.value, ",", s.n)
+		r1, _ := sts(tmp, ":")
+		r2, _ := sts(s.result, ":")
+		if r1 != r2 {
 			t.Errorf("test %d is failed, expected %v but %v", i, s.result, r1)
 		}
 	}

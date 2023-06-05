@@ -10,7 +10,7 @@ import (
 
 // TestGet tests Get function.
 func TestGet(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		key   string
 		value string
 	}{
@@ -35,7 +35,7 @@ func TestGet(t *testing.T) {
 
 // TestSet tests Set function.
 func TestSet(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		key   string
 		value string
 	}{
@@ -62,7 +62,7 @@ func TestSet(t *testing.T) {
 
 // TestUnset tests Unset function.
 func TestUnset(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		key   string
 		value string
 	}{
@@ -96,7 +96,7 @@ func TestUnset(t *testing.T) {
 
 // TestClear tests Clear function.
 func TestClear(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		key   string
 		value string
 	}{
@@ -127,7 +127,7 @@ func TestClear(t *testing.T) {
 
 // TestEnviron tests Environ function.
 func TestEnviron(t *testing.T) {
-	var tests = map[string]string{
+	tests := map[string]string{
 		"KEY_0": "Abc",
 		"KEY_1": "Def",
 	}
@@ -156,7 +156,7 @@ func TestEnviron(t *testing.T) {
 
 // TestExpand tests Expand function.
 func TestExpand(t *testing.T) {
-	var tests = map[string]string{
+	tests := map[string]string{
 		"KEY_0": "7",
 		"KEY_1": "5",
 		"KEY_2": "3",
@@ -195,7 +195,7 @@ func TestExpand(t *testing.T) {
 
 // TestLookup tests Lookup function.
 func TestLookup(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		key   string
 		value string
 	}{
