@@ -1,4 +1,4 @@
-[![Go Report Card](https://goreportcard.com/badge/github.com/goloop/env)](https://goreportcard.com/report/github.com/goloop/env) [![License](https://img.shields.io/badge/godoc-A+-brightgreen)](https://godoc.org/github.com/goloop/env) [![License](https://img.shields.io/badge/license-MIT-brightgreen)](https://github.com/goloop/env/blob/master/LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/goloop/env)](https://goreportcard.com/report/github.com/goloop/env) [![License](https://img.shields.io/badge/godoc-A+-brightgreen)](https://godoc.org/github.com/goloop/env) [![License](https://img.shields.io/badge/license-MIT-brightgreen)](https://github.com/goloop/env/blob/master/LICENSE) [![Stay with Ukraine](https://img.shields.io/static/v1?label=Stay%20with&message=Ukraine%20♥&color=ffd700&labelColor=007acc&style=flat)](https://u24.gov.ua/)
 
 # env
 
