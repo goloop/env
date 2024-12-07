@@ -1,0 +1,22 @@
+goos: linux
+goarch: arm64
+pkg: github.com/goloop/env
+BenchmarkSet-6                 	16032296	        72.82 ns/op	      24 B/op	       1 allocs/op
+BenchmarkGet-6                 	66386845	        18.85 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLookup-6              	61565335	        19.34 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSplitN-6              	  321172	      3577 ns/op	     360 B/op	      56 allocs/op
+BenchmarkMarshalSimple-6       	  204873	      5694 ns/op	    1969 B/op	      79 allocs/op
+BenchmarkUnmarshalSimple-6     	  157468	      7433 ns/op	    1520 B/op	      90 allocs/op
+BenchmarkLoadEnvFile-6         	   58338	     19894 ns/op	    7154 B/op	      74 allocs/op
+BenchmarkParallelUnmarshal-6   	  655478	      1776 ns/op	    1521 B/op	      90 allocs/op
+BenchmarkParallelTasks/ParallelTasks-2-6         	   77517	     15119 ns/op	    6500 B/op	      54 allocs/op
+BenchmarkParallelTasks/ParallelTasks-4-6         	   71469	     16459 ns/op	    6659 B/op	      58 allocs/op
+BenchmarkParallelTasks/ParallelTasks-8-6         	   62828	     18065 ns/op	    6985 B/op	      66 allocs/op
+BenchmarkParallelTasks/ParallelTasks-16-6        	   59553	     19758 ns/op	    7268 B/op	      74 allocs/op
+BenchmarkURLParsing-6                            	  170480	      6817 ns/op	    1360 B/op	      84 allocs/op
+BenchmarkTypeConversion/BOOL-6                   	32218880	        35.56 ns/op	      17 B/op	       2 allocs/op
+BenchmarkTypeConversion/STRING-6                 	25622972	        46.06 ns/op	      32 B/op	       2 allocs/op
+BenchmarkTypeConversion/INT-6                    	29729773	        39.55 ns/op	      24 B/op	       2 allocs/op
+BenchmarkTypeConversion/FLOAT-6                  	29957671	        39.12 ns/op	      24 B/op	       2 allocs/op
+PASS
+ok  	github.com/goloop/env	21.435s
