@@ -1,17 +1,9 @@
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+.vscode
 
-# Test binary, built with `go test -c`
-*.test
+# Benchmark comparison files
+old_benchmarks.txt
+new_benchmarks.txt
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
-
-# Dependency directories
-# vendor/
-.vscode/
-cmd/
+# Coverage output
+coverage.out
+coverage.html
