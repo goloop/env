@@ -2,24 +2,59 @@
 
 # env
 
-The env package provides a variety of methods for managing environment variables. It supports loading data from `.env` files into the environment and provides data transfer between the environment and custom Go data structures, allowing you to effortlessly update structure fields from environment variables or vice versa, set environment variables from Go structure fields. The env package supports all standard Go data types (strings, numbers, boolean expressions, slices, arrays, etc.), as well as the complex `url.URL` type.
+A powerful and flexible environment variable management package for Go with support for `.env` files, struct mapping, and advanced type conversion. It supports loading data from `.env` files into the environment and provides data transfer between the environment and custom Go data structures, allowing you to effortlessly update structure fields from environment variables or vice versa, set environment variables from Go structure fields. The env package supports all standard Go data types (strings, numbers, boolean expressions, slices, arrays, etc.), as well as the complex `url.URL` type.
 
 ## Features
 
-The main features of the env module include:
-
-  - setting environment variables from variables defined in an env-file;
-  - converting (marshaling) a Go structure to environment variables;
-  - extracting (unmarshaling) environment variables to a Go structure;
-  - setting any variables to the environment;
-  - deleting variables from the environment;
-  - checking for the presence of a variable in the environment;
-  - retrieving the value of a variable by key from the environment;
-  - clearing the environment.
-
-In addition, additional methods for working with `.env` files and data exchange between environment variables and the Go structs are implemented.
+- **Concurrent Processing**: Parse `.env` files using configurable parallel processing.
+- **Bi-directional Mapping**: Convert between environment variables and Go structures.
+- **Rich Type Support**: Handle all Go basic types, arrays, slices, and custom types.
+- **Advanced Parsing**: Support for variable expansion, quotes, comments, and multi-line values.
+- **Prefix Filtering**: Filter environment variables by prefix.
+- **Custom Interfaces**: Implement custom marshaling/unmarshaling behavior.
+- **Production Ready**: Thread-safe operations and comprehensive error handling.
 
 The module provides synonyms for the standard methods from the os module, such as `Get` for `os.Getenv`, `Set` for `os.Setenv`, `Unset` for `os.Unsetenv`, `Clear` for `os.Clearenv`, and Environ for `os.Environ`, to manage the environment. Additionally, it implements custom methods that enable saving variables from the environment into structures.
+
+## Installation
+
+```bash
+go get -u github.com/goloop/env
+```
+
+## Quick Start
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/goloop/env"
+    "log"
+)
+
+type Config struct {
+    Host    string   `env:"HOST" def:"localhost"`
+    Port    int      `env:"PORT" def:"8080"`
+    IPs     []string `env:"ALLOWED_IPS" sep:","`
+    IsDebug bool     `env:"DEBUG" def:"true"`
+}
+
+func main() {
+    // Load .env file.
+    if err := env.Load(".env"); err != nil {
+        log.Fatal(err)
+    }
+
+    // Parse environment into struct.
+    var cfg Config
+    if err := env.Unmarshal("", &cfg); err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("%+v\n", cfg)
+}
+```
 
 ## Env-file supports
 
@@ -583,3 +618,11 @@ func main() {
 	//  Allowed hosts: [localhost 127.0.0.1]
 }
 ```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
