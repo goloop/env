@@ -300,12 +300,31 @@ func readParseStore(filename string, expand, update, forced bool) error {
 	}
 
 	// Read the file line by line and send it to the channel.
-	number := 0 // file line number
+	number := 0 // logical line number
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
+		text := scanner.Text()
+
+		// Multiline values: if the value opens a quote that is not closed
+		// on this physical line, keep reading and join the lines with "\n"
+		// until the matching closing quote is found.
+		if q := multilineQuote(text); q != 0 {
+			var b strings.Builder
+			b.WriteString(text)
+			for scanner.Scan() {
+				cont := scanner.Text()
+				b.WriteByte('\n')
+				b.WriteString(cont)
+				if countUnescapedQuote(cont, q)%2 != 0 {
+					break // closing quote found
+				}
+			}
+			text = b.String()
+		}
+
 		select {
-		case lines <- line{text: scanner.Text(), number: number}:
-			number++ // increment line number
+		case lines <- line{text: text, number: number}:
+			number++ // increment logical line number
 		case <-ctx.Done():
 			break // stop reading the file if an error is detected
 		}
@@ -512,6 +531,59 @@ func expandEscapes(s string) string {
 	}
 
 	return sb.String()
+}
+
+// The countUnescapedQuote counts occurrences of the quote byte q in s that
+// are not escaped by a preceding backslash (an even number of backslashes
+// before the quote means it is not escaped).
+func countUnescapedQuote(s string, q byte) int {
+	n := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == q {
+			bs := 0
+			for j := i - 1; j >= 0 && s[j] == '\\'; j-- {
+				bs++
+			}
+			if bs%2 == 0 {
+				n++
+			}
+		}
+	}
+
+	return n
+}
+
+// The multilineQuote reports the opening quote byte (", ' or `) when the
+// given line starts a quoted value whose quote is not closed on the same
+// line (i.e. the start of a multiline value). It returns 0 otherwise.
+func multilineQuote(line string) byte {
+	// Comments and empty lines never start a value.
+	if isEmpty(line) {
+		return 0
+	}
+
+	pos := strings.IndexByte(line, '=')
+	if pos == -1 {
+		return 0
+	}
+
+	value := strings.TrimLeft(line[pos+1:], " \t")
+	if value == "" {
+		return 0
+	}
+
+	q := value[0]
+	if q != '"' && q != '\'' && q != '`' {
+		return 0
+	}
+
+	// The opening quote is unterminated when the number of unescaped
+	// quotes on the line is odd.
+	if countUnescapedQuote(value, q)%2 != 0 {
+		return q
+	}
+
+	return 0
 }
 
 // The removeInlineComment function removes the comment in the env-string.

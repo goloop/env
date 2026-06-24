@@ -280,6 +280,32 @@ func TestReadParseStoreEscapes(t *testing.T) {
 	}
 }
 
+// TestReadParseStoreMultiline checks that values spanning several physical
+// lines inside quotes are joined with newlines, that expansion applies to
+// double quotes only, and that parsing resumes after the closing quote.
+func TestReadParseStoreMultiline(t *testing.T) {
+	expand := true
+	tests := map[string]string{
+		"BASE":         "xyz",
+		"MULTI_DOUBLE": "line1\nline2\nline3", // joined with newlines.
+		"MULTI_SINGLE": "one\ntwo",            // literal, single quotes.
+		"MULTI_EXPAND": "a\nxyz\nb",           // ${BASE} expanded.
+		"TAIL":         "done",                // parsing resumes after value.
+	}
+
+	os.Clearenv()
+	err := readParseStore("./fixtures/multiline.env", expand, false, false)
+	if err != nil {
+		t.Error(err)
+	}
+
+	for key, value := range tests {
+		if v := os.Getenv(key); value != v {
+			t.Errorf("incorrect value for `%s` key: %q != %q", key, value, v)
+		}
+	}
+}
+
 // TestReadParseStoreNotUpdate tests variable update protection.
 func TestReadParseStoreNotUpdate(t *testing.T) {
 	var (
