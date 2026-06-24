@@ -229,6 +229,32 @@ func TestReadParseStoreVariables(t *testing.T) {
 	}
 }
 
+// TestReadParseStoreQuoteExpansion checks that variable expansion applies
+// to double-quoted and unquoted values only; single quotes and backticks
+// are literal per the dotenv specification.
+func TestReadParseStoreQuoteExpansion(t *testing.T) {
+	expand := true
+	tests := map[string]string{
+		"BASE":     "world",
+		"DOUBLE":   "hello world", // double quotes expand.
+		"SINGLE":   "hello $BASE", // single quotes are literal.
+		"BACKTICK": "hello $BASE", // backticks are literal.
+		"UNQUOTED": "hello-world", // unquoted expands.
+	}
+
+	os.Clearenv()
+	err := readParseStore("./fixtures/expandquotes.env", expand, false, false)
+	if err != nil {
+		t.Error(err)
+	}
+
+	for key, value := range tests {
+		if v := os.Getenv(key); value != v {
+			t.Errorf("incorrect value for `%s` key: `%s`!=`%s`", key, value, v)
+		}
+	}
+}
+
 // TestReadParseStoreNotUpdate tests variable update protection.
 func TestReadParseStoreNotUpdate(t *testing.T) {
 	var (

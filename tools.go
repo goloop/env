@@ -268,7 +268,7 @@ func readParseStore(filename string, expand, update, forced bool) error {
 				// Parse expression.
 				// The string containing the expression must be of the
 				// format as: [export] KEY=VALUE [# Comment]
-				key, value, err := parseExpression(line.text)
+				key, value, quote, err := parseExpression(line.text)
 				if err != nil {
 					if forced {
 						continue // ignore error in the line
@@ -278,10 +278,11 @@ func readParseStore(filename string, expand, update, forced bool) error {
 					}
 				}
 
-				// Check whether to execute os.Expand only in expand mode,
-				// otherwise set false for all exceptions.
+				// Variable expansion (${var}/$var) applies to unquoted and
+				// double-quoted values only. Single quotes and backticks are
+				// literal per the dotenv specification, so `$` stays as-is.
 				expanded := false
-				if expand {
+				if expand && quote != '\'' && quote != '`' {
 					expanded = strings.Contains(value, "$")
 				}
 
@@ -526,9 +527,11 @@ func removeInlineComment(str string, q rune) string {
 
 // The parseExpression function breaks an expression into a key and value,
 // ignoring comments and any spaces. The value must be an env-expression.
-func parseExpression(exp string) (key, value string, err error) {
-	// Type of the quote.
-	var quote rune
+//
+// The returned quote is the kind of quote that wrapped the value (', " or `),
+// or 0 if the value was unquoted. Callers use it to decide whether variable
+// expansion applies (single quotes and backticks are literal).
+func parseExpression(exp string) (key, value string, quote rune, err error) {
 
 	// Get key name.
 	// Remove `export` prefix, `=` suffix and trim spaces.
