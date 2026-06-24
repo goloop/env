@@ -476,6 +476,44 @@ func splitN(str, sep string, n int) (r []string) {
 	return
 }
 
+// The expandEscapes interprets backslash escape sequences inside
+// double-quoted values: \n, \t, \r become the corresponding control
+// characters and \\ becomes a single backslash (\" is already handled
+// during quote processing). Unknown escapes are left untouched.
+func expandEscapes(s string) string {
+	if !strings.Contains(s, "\\") {
+		return s
+	}
+
+	var sb strings.Builder
+	sb.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case 'n':
+				sb.WriteByte('\n')
+			case 't':
+				sb.WriteByte('\t')
+			case 'r':
+				sb.WriteByte('\r')
+			case '\\':
+				sb.WriteByte('\\')
+			case '"':
+				sb.WriteByte('"')
+			default:
+				// Keep unknown escapes verbatim (backslash + char).
+				sb.WriteByte('\\')
+				sb.WriteByte(s[i+1])
+			}
+			i++
+			continue
+		}
+		sb.WriteByte(s[i])
+	}
+
+	return sb.String()
+}
+
 // The removeInlineComment function removes the comment in the env-string.
 // It removes comments starting with the hash symbol (#) if they are not
 // enclosed in quotes (single, double, or backquote).
@@ -592,6 +630,12 @@ func parseExpression(exp string) (key, value string, quote rune, err error) {
 		// ... change `\"` and `\'` to `"` and `'`.
 		value = value[1 : len(value)-1]
 		value = strings.Replace(value, marker, string(quote), -1)
+
+		// In double-quoted values interpret escape sequences
+		// (\n, \t, \r, \\). Single quotes and backticks stay literal.
+		if quote == '"' {
+			value = expandEscapes(value)
+		}
 	}
 
 	return

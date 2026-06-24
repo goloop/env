@@ -255,6 +255,31 @@ func TestReadParseStoreQuoteExpansion(t *testing.T) {
 	}
 }
 
+// TestReadParseStoreEscapes checks that escape sequences are interpreted
+// inside double-quoted values (\n, \t, \\, \") and left literal inside
+// single quotes, matching the dotenv specification.
+func TestReadParseStoreEscapes(t *testing.T) {
+	tests := map[string]string{
+		"DOUBLE_NL":    "line1\nline2", // \n -> newline.
+		"DOUBLE_TAB":   "a\tb",         // \t -> tab.
+		"DOUBLE_BS":    `a\b`,          // \\ -> single backslash.
+		"DOUBLE_QUOTE": `say "hi"`,     // \" -> quote.
+		"SINGLE_NL":    `line1\nline2`, // single quotes: literal \n.
+	}
+
+	os.Clearenv()
+	err := readParseStore("./fixtures/escapes.env", false, false, false)
+	if err != nil {
+		t.Error(err)
+	}
+
+	for key, value := range tests {
+		if v := os.Getenv(key); value != v {
+			t.Errorf("incorrect value for `%s` key: %q != %q", key, value, v)
+		}
+	}
+}
+
 // TestReadParseStoreNotUpdate tests variable update protection.
 func TestReadParseStoreNotUpdate(t *testing.T) {
 	var (
