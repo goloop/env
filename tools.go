@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 	"unicode"
-	"unicode/utf8"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -389,7 +388,6 @@ func splitN(str, sep string, n int) (r []string) {
 		level int
 		host  rune
 		char  rune
-		tmp   string
 
 		flips    = map[rune]rune{'}': '{', ']': '[', ')': '('}
 		quotes   = "\"'`"
@@ -417,45 +415,61 @@ func splitN(str, sep string, n int) (r []string) {
 		return true
 	}
 
-	// Allocate the max memory size for storage all fields.
-	r = make([]string, 0, strings.Count(str, ",")+1)
+	// Work on runes, not bytes: indexing str[i] by byte corrupts multi-byte
+	// values and separators (e.g. Cyrillic, emoji). Converting to []rune once
+	// also keeps the loop O(n) instead of O(n^2).
+	runes := []rune(str)
+	sepRunes := []rune(sep)
+	sepLen := len(sepRunes)
+
+	// The matchSep reports whether the separator occurs at position i.
+	matchSep := func(i int) bool {
+		if sepLen == 0 || i+sepLen > len(runes) {
+			return false
+		}
+		for j := 0; j < sepLen; j++ {
+			if runes[i+j] != sepRunes[j] {
+				return false
+			}
+		}
+		return true
+	}
+
+	// Pre-allocate based on the actual separator (not a hard-coded comma).
+	r = make([]string, 0, strings.Count(str, sep)+1)
 
 	// Split value.
-	for i := 0; i < utf8.RuneCountInString(str); i++ {
-		char = rune(str[i])
-		if level == 0 && contains(quotes+brackets, char) {
+	var sb strings.Builder
+	for i := 0; i < len(runes); i++ {
+		char = runes[i]
+		switch {
+		case level == 0 && contains(quotes+brackets, char):
 			host, level = char, level+1
-		} else if contains(quotes, host, char) {
+		case contains(quotes, host, char):
 			level, host = 0, 0
-		} else if contains(brackets, host, flips[char]) {
+		case contains(brackets, host, flips[char]):
 			level--
 			if level <= 0 {
 				level, host = 0, 0
 			}
-		} else if level == 0 {
-			endpoint := i + utf8.RuneCountInString(sep)
-			if endpoint > len(str) {
-				endpoint = len(str)
+		case level == 0 && matchSep(i):
+			r = append(r, sb.String())
+			sb.Reset()
+			if n > 0 && n == len(r)+1 {
+				// The last element is the unsplit remainder.
+				return append(r, string(runes[i+sepLen:]))
 			}
-
-			if sep == str[i:endpoint] {
-				i += utf8.RuneCountInString(sep) - 1
-				r = append(r, tmp)
-				tmp = ""
-				if n > 0 && n == len(r)+1 {
-					tmp = str[endpoint:]
-					break
-				}
-				continue
-			}
+			i += sepLen - 1
+			continue
 		}
 
-		tmp += string(char)
+		sb.WriteRune(char)
 	}
 
-	// Add last piece to the result.
-	if len(tmp) != 0 || string(char) == sep {
-		r = append(r, tmp)
+	// Add last piece to the result (including a trailing empty
+	// field when the string ends with the separator).
+	if sb.Len() != 0 || string(char) == sep {
+		r = append(r, sb.String())
 	}
 
 	return

@@ -272,3 +272,39 @@ func TestSplitN(t *testing.T) {
 		}
 	}
 }
+
+// TestSplitNUnicode tests that splitN keeps multi-byte (non-ASCII) values
+// and separators intact. Indexing the string by byte used to corrupt
+// Cyrillic, accented Latin and emoji and to cut the result short.
+func TestSplitNUnicode(t *testing.T) {
+	tests := []struct {
+		value  string
+		sep    string
+		n      int
+		result []string
+	}{
+		// Cyrillic values, ASCII separator.
+		{"ключ,значення", ",", -1, []string{"ключ", "значення"}},
+		// Accented Latin values, ASCII separator.
+		{"café,naïve,über", ",", -1, []string{"café", "naïve", "über"}},
+		// Emoji values, ASCII separator.
+		{"🔑,🌍,✓", ",", -1, []string{"🔑", "🌍", "✓"}},
+		// Non-ASCII (multi-byte) separator.
+		{"a→b→c", "→", -1, []string{"a", "b", "c"}},
+		// Multi-rune non-ASCII separator.
+		{"один::два::три", "::", -1, []string{"один", "два", "три"}},
+		// Grouping must still hold with multi-byte content.
+		{"a,(б,в),г", ",", -1, []string{"a", "(б,в)", "г"}},
+		// n>0 remainder must keep the rest of a multi-byte string intact.
+		{"ключ,значення,решта", ",", 2, []string{"ключ", "значення,решта"}},
+	}
+
+	for i, s := range tests {
+		tmp := splitN(s.value, s.sep, s.n)
+		r1, _ := sts(tmp, "|")
+		r2, _ := sts(s.result, "|")
+		if r1 != r2 {
+			t.Errorf("test %d failed, expected %v but got %v", i, s.result, tmp)
+		}
+	}
+}
