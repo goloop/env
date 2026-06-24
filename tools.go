@@ -541,19 +541,17 @@ func parseExpression(exp string) (key, value string, err error) {
 	key = tmp[1]
 
 	// Get value of the key.
-	// ... the `=` sign in the string.
-	if pos := strings.IndexRune(exp, '='); pos != -1 {
-		value = exp[pos:]
-		if !valueRgx.MatchString(value) {
-			err = fmt.Errorf("incorrect value: %s", value)
-			return
-		}
-	} else {
+	// Everything after the first `=` is the value. An empty value (`KEY=`)
+	// is valid and yields an empty string; surrounding whitespace of an
+	// unquoted value is trimmed (`KEY= value` -> `value`). Whitespace inside
+	// quotes is preserved later during quote processing.
+	pos := strings.IndexRune(exp, '=')
+	if pos == -1 {
 		err = fmt.Errorf("missing `=` sign in the expression: %s", exp)
 		return
 	}
 
-	value = strings.TrimSpace(value[1:])
+	value = strings.TrimSpace(exp[pos+1:])
 
 	// Check the value for quotes.
 	if strings.HasPrefix(value, "'") {

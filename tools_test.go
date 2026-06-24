@@ -126,12 +126,52 @@ func TestReadParseStoreWorngEqualKey(t *testing.T) {
 	}
 }
 
-// TestReadParseStoreWorngEqualValue tests problem with
-// space after the equal sign.
-func TestReadParseStoreWorngEqualValue(t *testing.T) {
+// TestReadParseStoreSpaceAfterEqual checks that a space after the equal
+// sign is valid (the value is trimmed), matching the dotenv specification.
+func TestReadParseStoreSpaceAfterEqual(t *testing.T) {
+	tests := map[string]string{
+		"KEY_0": "value_0",
+		"KEY_1": "value_1",
+		"KEY_2": "value_2", // `KEY_2= "value_2"` - space after `=`.
+		"KEY_3": "value_3",
+	}
+
+	os.Clearenv()
 	err := readParseStore("./fixtures/wrongequalvalue.env", false, true, false)
-	if err == nil {
-		t.Error("should be an error")
+	if err != nil {
+		t.Error(err)
+	}
+
+	for key, value := range tests {
+		if v := os.Getenv(key); value != v {
+			t.Errorf("incorrect value for `%s` key: `%s`!=`%s`", key, value, v)
+		}
+	}
+}
+
+// TestReadParseStoreEmptyValue checks that empty values (`KEY=`, `KEY=""`)
+// are valid and resolve to "" with Lookup reporting them as set.
+func TestReadParseStoreEmptyValue(t *testing.T) {
+	tests := map[string]string{
+		"EMPTY":  "",
+		"QUOTED": "",
+		"AFTER":  "value",
+	}
+
+	os.Clearenv()
+	err := readParseStore("./fixtures/empty.env", false, false, false)
+	if err != nil {
+		t.Error(err)
+	}
+
+	for key, value := range tests {
+		v, ok := os.LookupEnv(key)
+		if !ok {
+			t.Errorf("key `%s` should be set (present) in the environment", key)
+		}
+		if v != value {
+			t.Errorf("incorrect value for `%s` key: `%s`!=`%s`", key, value, v)
+		}
 	}
 }
 

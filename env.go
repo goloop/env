@@ -39,10 +39,6 @@ var (
 	// is empty (consists of characters that cannot be values).
 	emptyLineRgx = regexp.MustCompile(`^(\s*)$|^(\s*[#].*)$`)
 
-	// The valueRgx is a regular expression to check
-	// the string which can be a value.
-	valueRgx = regexp.MustCompile(`^=[^\s].*`)
-
 	// The keyRgx is a regular expression to check
 	// the string which can be a key.
 	keyRgx = regexp.MustCompile(
