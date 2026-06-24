@@ -23,7 +23,7 @@ import (
 //
 // Note: This function is not used as an environment function subsystem,
 // it is only used to test package functions.
-func sts(seq interface{}, sep string) (string, error) {
+func sts(seq any, sep string) (string, error) {
 	// Create a string builder to concatenate strings.
 	var sb strings.Builder
 
@@ -55,7 +55,7 @@ func sts(seq interface{}, sep string) (string, error) {
 //
 // Note: This function is not used as an environment function subsystem,
 // it is only used to test package functions.
-func fts(v interface{}, name, sep string) string {
+func fts(v any, name, sep string) string {
 	// Check if v is a struct. And if v is a pointer to a structure,
 	// we need to get the structure it refers to.
 	r := reflect.ValueOf(v)

@@ -256,7 +256,7 @@ func UpdateSafe(filename string) error {
 //	HOST=localhost
 //	PORT=8080
 //	ALLOWED_HOSTS=localhost:127.0.0.1
-func Save(filename, prefix string, obj interface{}) error {
+func Save(filename, prefix string, obj any) error {
 	var result bytes.Buffer
 
 	items, err := marshalEnv(prefix, obj, true) // don't change environment
@@ -391,7 +391,7 @@ func Exists(keys ...string) bool {
 //	//  Host: 192.168.0.1
 //	//  Port: 80
 //	//  AllowedHosts: [192.168.0.1]
-func Unmarshal(prefix string, obj interface{}) error {
+func Unmarshal(prefix string, obj any) error {
 	return unmarshalEnv(prefix, obj)
 }
 
@@ -466,6 +466,6 @@ func Unmarshal(prefix string, obj interface{}) error {
 //	//  Host: 192.168.0.1
 //	//  Port: 80
 //	//  AllowedHosts: 192.168.0.1
-func Marshal(prefix string, scope interface{}) ([]string, error) {
+func Marshal(prefix string, scope any) ([]string, error) {
 	return marshalEnv(prefix, scope, false)
 }

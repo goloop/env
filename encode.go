@@ -1,7 +1,6 @@
 package env
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"reflect"
@@ -25,7 +24,7 @@ type Marshaler interface {
 // processed recursively.
 //
 // For other filed's types (like chan, map ...) will be returned an error.
-func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
+func marshalEnv(prefix string, obj any, idle bool) ([]string, error) {
 	var result []string
 
 	// Convert *object to object and mean that we use
@@ -38,7 +37,7 @@ func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
 
 	// The obj argument should be a initialized object.
 	if rt.Kind() != reflect.Struct || !rv.IsValid() {
-		return result, errors.New("obj should be an initialized struct")
+		return result, ErrInvalidObject
 	}
 
 	// Get a pointer to the object.
@@ -50,8 +49,8 @@ func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
 		// Try to run custom MarshalEnv function.
 		if m := ptr.MethodByName("MarshalEnv"); m.IsValid() {
 			tmp := m.Call([]reflect.Value{}) // len == 2
-			if err := tmp[1].Interface(); err != nil {
-				return result, fmt.Errorf("custom marshal method: %v", err)
+			if err, _ := tmp[1].Interface().(error); err != nil {
+				return result, fmt.Errorf("custom marshal method: %w", err)
 			}
 
 			value := tmp[0].Interface()
@@ -93,7 +92,7 @@ func marshalEnv(prefix string, obj interface{}, idle bool) ([]string, error) {
 		}
 
 		// Get item.
-		item := rv.FieldByName(field.Name)
+		item := rv.Field(i)
 		if item.Kind() == reflect.Ptr {
 			item = item.Elem()
 		}
@@ -208,10 +207,10 @@ func toStr(item reflect.Value) (string, error) {
 	switch item.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16,
 		reflect.Int32, reflect.Int64:
-		return fmt.Sprintf("%d", item.Int()), nil
+		return strconv.FormatInt(item.Int(), 10), nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16,
 		reflect.Uint32, reflect.Uint64:
-		return fmt.Sprintf("%d", item.Uint()), nil
+		return strconv.FormatUint(item.Uint(), 10), nil
 	case reflect.Float32, reflect.Float64:
 		// Use the shortest representation that round-trips (`%f` forced
 		// 6 decimals and broke the round-trip: 3.14 -> "3.140000").
@@ -221,7 +220,7 @@ func toStr(item reflect.Value) (string, error) {
 		}
 		return strconv.FormatFloat(item.Float(), 'g', -1, bitSize), nil
 	case reflect.Bool:
-		return fmt.Sprintf("%t", item.Bool()), nil
+		return strconv.FormatBool(item.Bool()), nil
 	case reflect.String:
 		return item.String(), nil
 	case reflect.Struct:

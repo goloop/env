@@ -1,7 +1,6 @@
 package env
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -20,19 +19,19 @@ type Unmarshaler interface {
 // The validateStruct checks whether the object is a pointer to the structure,
 // and returns reflect.Type and reflect.Value of the object. If the object is
 // not a pointer to the structure or object is nil, it returns an error.
-func validateStruct(obj interface{}) (reflect.Type, reflect.Value, error) {
+func validateStruct(obj any) (reflect.Type, reflect.Value, error) {
 	rt, rv, err := reflect.TypeOf(obj), reflect.ValueOf(obj), error(nil)
 
 	// Check object type
 	// Object should be a pointer to a non-empty struct.
 	if obj == nil {
-		err = errors.New("obj is nil")
+		err = ErrNilObject
 	} else if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		err = errors.New("obj should be a non-nil pointer to a struct")
+		err = ErrNotPointer
 	} else if rv.Type().Elem().Kind() != reflect.Struct {
-		err = errors.New("obj should be a pointer to a struct")
+		err = ErrNotStruct
 	} else if rv.Elem().NumField() == 0 {
-		err = errors.New("obj should be a pointer to a non-empty struct")
+		err = ErrEmptyStruct
 	}
 
 	return rt, rv, err
@@ -56,7 +55,7 @@ func validateStruct(obj interface{}) (reflect.Type, reflect.Value, error) {
 //
 // The obj is a pointer to an initialized object where need to
 // save variables from the environment.
-func unmarshalEnv(prefix string, obj interface{}) error {
+func unmarshalEnv(prefix string, obj any) error {
 	t, v, err := validateStruct(obj)
 	if err != nil {
 		return err
@@ -112,7 +111,7 @@ func unmarshalEnv(prefix string, obj interface{}) error {
 		}
 
 		// Set value to field.
-		item := e.FieldByName(field.Name)
+		item := e.Field(i)
 		if err := setFieldValue(&item, tg); err != nil {
 			return err
 		}
