@@ -6,13 +6,13 @@ A powerful and flexible environment variable management package for Go with supp
 
 ## Features
 
-- **Concurrent Processing**: Parse `.env` files using configurable parallel processing.
+- **Flexible Loading**: Load `.env` files into the environment, with optional overriding of existing keys.
 - **Bi-directional Mapping**: Convert between environment variables and Go structures.
 - **Rich Type Support**: Handle all Go basic types, arrays, slices, and custom types.
-- **Advanced Parsing**: Support for variable expansion, quotes, comments, and multi-line values.
+- **Spec-Compliant Parsing**: Variable expansion, single/double/backtick quotes, escape sequences, comments, and multi-line values.
 - **Prefix Filtering**: Filter environment variables by prefix.
 - **Custom Interfaces**: Implement custom marshaling/unmarshaling behavior.
-- **Production Ready**: Thread-safe operations and comprehensive error handling.
+- **Production Ready**: Comprehensive error handling with typed sentinel errors.
 
 The module provides synonyms for the standard methods from the os module, such as `Get` for `os.Getenv`, `Set` for `os.Setenv`, `Unset` for `os.Unsetenv`, `Clear` for `os.Clearenv`, and Environ for `os.Environ`, to manage the environment. Additionally, it implements custom methods that enable saving variables from the environment into structures.
 
@@ -464,11 +464,6 @@ There are several ways of using this package.
   - saving Go structure's fields to the env files.
 
 ### Parsing env files
-
-Parsing of env-files takes place in concurrency mode, runtime.NumCPU() is used by default for the number of goroutines.
-
-To change the number of goroutines you need to use the `ParallelTasks` method.
-
 
 There are several methods for parsing env files:
 

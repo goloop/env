@@ -4,7 +4,7 @@
 // variables.
 //
 // Core Features:
-//   - Concurrent parsing of .env files with configurable parallelism
+//   - Loading .env files into the process environment with override control
 //   - Bidirectional mapping between environment variables and Go structures
 //   - Support for nested structures and complex data types
 //   - Advanced type conversion with validation
@@ -55,8 +55,11 @@
 //	    }
 //	}
 //
-// The package is designed to be efficient and safe, with careful handling of
-// concurrent operations and proper error management. It provides a clean API
-// that follows Go idioms while offering powerful features for complex
-// configuration scenarios.
+// The package is designed to be efficient and to follow Go idioms, with proper
+// error management and a clean API for complex configuration scenarios.
+//
+// Note that loading and marshaling operate on the global process environment.
+// Beyond the guarantees of the standard os package there is no extra
+// synchronization, so callers should not load and read the same keys
+// concurrently.
 package env
