@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -212,7 +213,13 @@ func toStr(item reflect.Value) (string, error) {
 		reflect.Uint32, reflect.Uint64:
 		return fmt.Sprintf("%d", item.Uint()), nil
 	case reflect.Float32, reflect.Float64:
-		return fmt.Sprintf("%f", item.Float()), nil
+		// Use the shortest representation that round-trips (`%f` forced
+		// 6 decimals and broke the round-trip: 3.14 -> "3.140000").
+		bitSize := 64
+		if item.Kind() == reflect.Float32 {
+			bitSize = 32
+		}
+		return strconv.FormatFloat(item.Float(), 'g', -1, bitSize), nil
 	case reflect.Bool:
 		return fmt.Sprintf("%t", item.Bool()), nil
 	case reflect.String:

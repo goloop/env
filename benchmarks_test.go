@@ -1,7 +1,6 @@
 package env
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 	"testing"
@@ -114,32 +113,6 @@ func BenchmarkParallelUnmarshal(b *testing.B) {
 			Unmarshal("TEST_", &config)
 		}
 	})
-}
-
-// Benchmark with different parallel tasks settings
-func BenchmarkParallelTasks(b *testing.B) {
-	tests := []int{2, 4, 8, 16}
-	content := `
-HOST=localhost
-PORT=8080
-ALLOWED_IPS=127.0.0.1,192.168.1.1
-IS_PROD=true
-API_URL=https://api.example.com
-`
-	tmpfile := b.TempDir() + "/.env"
-	if err := os.WriteFile(tmpfile, []byte(content), 0644); err != nil {
-		b.Fatal(err)
-	}
-
-	for _, tasks := range tests {
-		b.Run(fmt.Sprintf("ParallelTasks-%d", tasks), func(b *testing.B) {
-			ParallelTasks(tasks)
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				Load(tmpfile)
-			}
-		})
-	}
 }
 
 // Benchmark URL parsing

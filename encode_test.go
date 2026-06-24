@@ -491,6 +491,47 @@ func TestMarshalEnvNumberPtr(t *testing.T) {
 	}
 }
 
+// TestMarshalEnvFloatPrecision checks that floats marshal to their shortest
+// round-tripping representation (not the `%f` 6-decimal form) and that
+// Marshal -> Unmarshal preserves the value.
+func TestMarshalEnvFloatPrecision(t *testing.T) {
+	type cfg struct {
+		Pi    float64 `env:"PI"`
+		Big   float64 `env:"BIG"`
+		Small float64 `env:"SMALL"`
+		F32   float32 `env:"F32"`
+	}
+
+	os.Clearenv()
+	in := cfg{Pi: 3.14, Big: 1e20, Small: 0.000001234, F32: 3.14}
+	if _, err := marshalEnv("", in, false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Exact string forms (no trailing "000000").
+	want := map[string]string{
+		"PI":    "3.14",
+		"BIG":   "1e+20",
+		"SMALL": "1.234e-06",
+		"F32":   "3.14",
+	}
+	for key, value := range want {
+		if v := os.Getenv(key); v != value {
+			t.Errorf("incorrect value for %s: %q != %q", key, v, value)
+		}
+	}
+
+	// Round-trip equality.
+	var out cfg
+	if err := unmarshalEnv("", &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Pi != in.Pi || out.Big != in.Big ||
+		out.Small != in.Small || out.F32 != in.F32 {
+		t.Errorf("round-trip mismatch: got %+v, want %+v", out, in)
+	}
+}
+
 // TestMarshalEnvBoolPtr tests marshalEnv for pointer of bool.
 func TestMarshalEnvBoolPtr(t *testing.T) {
 	var (

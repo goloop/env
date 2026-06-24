@@ -2,7 +2,6 @@ package env
 
 import (
 	"bufio"
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -10,10 +9,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
-	"sync"
 	"unicode"
-
-	"golang.org/x/sync/errgroup"
 )
 
 // The sts function converts a slice or an array of any type to a string.
@@ -221,24 +217,12 @@ func isEmpty(str string) bool {
 //	// PORT=80
 //	// EMAIL=goloop@goloop.one
 func readParseStore(filename string, expand, update, forced bool) error {
-	// Define a structure for the line
-	// that is read from the env-file.
-	type line struct {
-		text   string // raw string from env-file
-		number int    // number of line in the env-file
+	// A parsed key/value entry from the env-file.
+	type entry struct {
+		key      string
+		value    string
+		expanded bool // value may contain ${var}/$var to expand
 	}
-
-	// Define a structure for the result,
-	// which is a parsed line from the env-file.
-	type output struct {
-		expanded bool   // true if the value can be expanded
-		value    string // key value
-		line     line   // raw line object
-		key      string // key name
-	}
-
-	// We use sync.Map instead of []output with sync.Mutex.
-	var outputs sync.Map // map[int]output
 
 	// Try to open env-file in read only mode.
 	file, err := os.OpenFile(filename, os.O_RDONLY, 0)
@@ -247,60 +231,13 @@ func readParseStore(filename string, expand, update, forced bool) error {
 	}
 	defer file.Close()
 
-	// Parse env-file using goroutines.
-	// We use errgroup as a better way to group goroutines and context to
-	// stop all goroutines from executing if an error is detected in a file.
-	lines := make(chan line) // channel for lines from env-file
-	ctx, cancel := context.WithCancel(context.Background())
-	eg, ctx := errgroup.WithContext(ctx)
-	defer cancel()
+	// Read and parse the file sequentially. Parsing a small env-file is a
+	// few string operations per line, so goroutines/channels would only add
+	// coordination overhead; the apply step below must stay ordered anyway
+	// (expansion depends on earlier keys already being set).
+	var entries []entry
 
-	// Create some goroutines (parallelTasks)
-	// to parsing lines from an env-file.
-	for i := 0; i < parallelTasks; i++ {
-		eg.Go(func() error {
-			for line := range lines {
-				// Ignore empty string or comments.
-				if isEmpty(line.text) {
-					continue
-				}
-
-				// Parse expression.
-				// The string containing the expression must be of the
-				// format as: [export] KEY=VALUE [# Comment]
-				key, value, quote, err := parseExpression(line.text)
-				if err != nil {
-					if forced {
-						continue // ignore error in the line
-					} else {
-						cancel() // stop other goroutines too
-						return err
-					}
-				}
-
-				// Variable expansion (${var}/$var) applies to unquoted and
-				// double-quoted values only. Single quotes and backticks are
-				// literal per the dotenv specification, so `$` stays as-is.
-				expanded := false
-				if expand && quote != '\'' && quote != '`' {
-					expanded = strings.Contains(value, "$")
-				}
-
-				// Save the result.
-				outputs.Store(line.number, output{
-					expanded: expanded,
-					value:    value,
-					line:     line,
-					key:      key,
-				})
-			}
-
-			return nil
-		})
-	}
-
-	// Read the file line by line and send it to the channel.
-	number := 0 // logical line number
+	// Read and parse line by line.
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		text := scanner.Text()
@@ -322,55 +259,47 @@ func readParseStore(filename string, expand, update, forced bool) error {
 			text = b.String()
 		}
 
-		select {
-		case lines <- line{text: text, number: number}:
-			number++ // increment logical line number
-		case <-ctx.Done():
-			break // stop reading the file if an error is detected
-		}
-	}
-	close(lines)
-
-	// Check for errors during reading the file.
-	if err := scanner.Err(); err != nil {
-		cancel()
-		return err
-	}
-
-	// Check for errors during parsing the file.
-	err = eg.Wait()
-	if err != nil && !errors.Is(err, context.Canceled) {
-		return err
-	}
-
-	// We know the actual number of lines in the file,
-	// so the map can have the same number of identified records (or less).
-	//
-	// For expanded mode, it is very important to keep the sequence of
-	// strings to load into environment:
-	//
-	// KEY_0=VALUE_0
-	// KEY_1=${KEY_0}7
-	// KEY_0=VALUE_1 # overridden
-	//
-	// In this case, with expanded mode, the value of KEY_0 will be VALUE_1,
-	// but KEY_1 will be VALUE_07, because the value of KEY_0 is
-	// already loaded in the first row and KEY_1 is updated
-	// in the second row.
-	for i := 0; i < number; i++ {
-		o, ok := outputs.Load(i)
-		if !ok {
+		// Ignore empty strings and comments.
+		if isEmpty(text) {
 			continue
 		}
 
-		item := o.(output) // convert to output type
-		if _, ok := os.LookupEnv(item.key); update || !ok {
-			if expand && item.expanded {
-				item.value = os.ExpandEnv(item.value)
+		// Parse expression of the form: [export] KEY=VALUE [# comment].
+		key, value, quote, err := parseExpression(text)
+		if err != nil {
+			if forced {
+				continue // ignore the wrong line
 			}
+			return err
+		}
 
-			err := os.Setenv(item.key, item.value)
-			if err != nil {
+		// Variable expansion (${var}/$var) applies to unquoted and
+		// double-quoted values only. Single quotes and backticks are
+		// literal per the dotenv specification, so `$` stays as-is.
+		expanded := expand && quote != '\'' && quote != '`' &&
+			strings.Contains(value, "$")
+
+		entries = append(entries, entry{key: key, value: value, expanded: expanded})
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	// Apply entries to the environment in file order. Order matters in
+	// expand mode: KEY_1=${KEY_0} must see the value KEY_0 had at that
+	// point (e.g. before a later KEY_0 override):
+	//
+	//	KEY_0=VALUE_0
+	//	KEY_1=${KEY_0}7   // -> VALUE_07
+	//	KEY_0=VALUE_1     // overrides KEY_0 afterwards
+	for _, e := range entries {
+		if _, ok := os.LookupEnv(e.key); update || !ok {
+			value := e.value
+			if e.expanded {
+				value = os.ExpandEnv(value)
+			}
+			if err := os.Setenv(e.key, value); err != nil {
 				return err
 			}
 		}

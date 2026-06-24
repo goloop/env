@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"os"
 	"regexp"
-	"runtime"
 )
 
 const (
@@ -28,10 +27,6 @@ const (
 )
 
 var (
-	// The parallelTasks the number of parallel transliteration tasks.
-	// By default, the number of threads is set as the number of CPU cores.
-	parallelTasks = 1
-
 	// The validKeyRgx is a regular expression to validate the key name.
 	validKeyRgx = regexp.MustCompile(`^[A-Za-z_]{1}\w*$`)
 
@@ -45,35 +40,6 @@ var (
 		`^(?:\s*)?(?:export\s+)?(?P<key>[a-zA-Z_][a-zA-Z_0-9]*)=`,
 	)
 )
-
-// Initializer.
-func init() {
-	// Set the number of parallel parsing tasks.
-	ParallelTasks(runtime.NumCPU())
-}
-
-// Together sets the number of parallel transliteration tasks.
-func ParallelTasks(pt int) int {
-	// The maximum number of parallel tasks
-	// is twice the number of CPU cores.
-	max := runtime.NumCPU() * 2
-
-	// clamp returns the value limited to the given range [min, max].
-	clamp := func(value, min, max int) int {
-		if value < min {
-			return min
-		}
-		if value > max {
-			return max
-		}
-		return value
-	}
-
-	// The minimum number of parallel tasks is 2.
-	// And the maximum number is twice the number of CPU cores.
-	parallelTasks = clamp(pt, 2, max)
-	return parallelTasks
-}
 
 // Load loads new keys only (without updating existing keys) from env-file
 // into environment. Handles variables like ${var} or $var in the value,
