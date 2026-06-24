@@ -2,8 +2,6 @@ package env
 
 import (
 	"bufio"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -515,55 +513,6 @@ func multilineQuote(line string) byte {
 	return 0
 }
 
-// The removeInlineComment function removes the comment in the env-string.
-// It removes comments starting with the hash symbol (#) if they are not
-// enclosed in quotes (single, double, or backquote).
-//
-// The value for quote can be as: single quote ('),
-// double quote ("), and backquote (`).
-func removeInlineComment(str string, q rune) string {
-	// If the comment isn't in the string.
-	// The environment file uses the lattice symbol (#) as a comment.
-	if !strings.Contains(str, "#") {
-		return str
-	}
-
-	var (
-		quote  = string(q)     // quote as string
-		escape = "\\" + quote  // escaped quote
-		inside bool            // inside of the quote
-		result strings.Builder // result string
-	)
-
-	// Remove the comment in the string.
-	for i := 0; i < len(str); i++ {
-		ch := str[i]
-
-		switch {
-		case ch == byte(q):
-			if inside {
-				// Check if the quote is escaped.
-				if i > 0 && str[i-1] != '\\' {
-					inside = false
-				}
-			} else {
-				inside = true
-			}
-			result.WriteByte(ch)
-		case ch == '#' && !inside:
-			return strings.TrimSpace(result.String())
-		case ch == '\\' && inside && i+1 < len(str) && str[i+1] == byte(q):
-			// Escaping quotes inside a quoted line.
-			result.WriteString(escape)
-			i++
-		default:
-			result.WriteByte(ch)
-		}
-	}
-
-	return result.String()
-}
-
 // The parseExpression function breaks an expression into a key and value,
 // ignoring comments and any spaces. The value must be an env-expression.
 //
@@ -611,33 +560,42 @@ func parseExpression(exp string) (key, value string, quote rune, err error) {
 		chunks = strings.Split(chunks[0], " ")
 		value = strings.TrimSpace(chunks[0])
 	} else if quote != 0 {
-		// A unique marker for temporary replacement of quotation marks.
-		buffer := make([]byte, 8)
-		rand.Read(buffer)
-		marker := "<::" + hex.EncodeToString(buffer) + "::>"
-
-		// Replace escaped quotes, remove comment in the string,
-		// check begin- and end- quotes and back escaped quotes.
-		value = strings.Replace(value, fmt.Sprintf("\\%c", quote), marker, -1)
-		value = removeInlineComment(value, quote)
-
-		// Check begin- and end- quotes.
-		if strings.Count(value, string(quote))%2 != 0 {
+		// Extract the quoted content with a single escape-aware pass:
+		// find the matching closing quote (a backslash escapes the next
+		// character) and drop anything after it (an inline comment).
+		content, ok := parseQuoted(value, byte(quote))
+		if !ok {
 			err = fmt.Errorf("incorrect value: %s", value)
 			return
 		}
 
-		// Remove begin- and end- quotes
-		// ... change `\"` and `\'` to `"` and `'`.
-		value = value[1 : len(value)-1]
-		value = strings.Replace(value, marker, string(quote), -1)
-
-		// In double-quoted values interpret escape sequences
-		// (\n, \t, \r, \\). Single quotes and backticks stay literal.
 		if quote == '"' {
-			value = expandEscapes(value)
+			// Double quotes interpret escape sequences (\n, \t, \r, \\, \").
+			value = expandEscapes(content)
+		} else {
+			// Single quotes and backticks are literal; only the escaped
+			// quote itself is unescaped (\' -> ', \` -> `).
+			value = strings.ReplaceAll(content, "\\"+string(quote), string(quote))
 		}
 	}
 
 	return
+}
+
+// The parseQuoted extracts the content of a quoted value. The string s must
+// start with the quote byte; the scan is escape-aware (a backslash escapes
+// the next character) and stops at the first unescaped closing quote.
+// It returns the content between the quotes and true, or false if there is
+// no matching closing quote.
+func parseQuoted(s string, quote byte) (string, bool) {
+	for i := 1; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			i++ // skip the escaped character
+		case quote:
+			return s[1:i], true
+		}
+	}
+
+	return "", false
 }
