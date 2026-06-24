@@ -25,6 +25,13 @@ type Marshaler interface {
 //
 // For other filed's types (like chan, map ...) will be returned an error.
 func marshalEnv(prefix string, obj any, idle bool) ([]string, error) {
+	return encodeStruct(obj, settings{prefix: prefix, separator: defValueSep}, idle)
+}
+
+// The encodeStruct converts the fields of obj into a list of "KEY=value"
+// strings, honouring the prefix and default separator from s. When idle is
+// false the values are also written into the process environment.
+func encodeStruct(obj any, s settings, idle bool) ([]string, error) {
 	var result []string
 
 	// Convert *object to object and mean that we use
@@ -73,7 +80,7 @@ func marshalEnv(prefix string, obj any, idle bool) ([]string, error) {
 		// Separator value for slices/arrays.
 		sep := field.Tag.Get(tagNameSep)
 		if sep == "" {
-			sep = defValueSep
+			sep = s.separator
 		}
 
 		// Create tag group.
@@ -113,8 +120,8 @@ func marshalEnv(prefix string, obj any, idle bool) ([]string, error) {
 
 			// Another struct.
 			// Recursive analysis of the nested structure.
-			p := fmt.Sprintf("%s%s_", prefix, tg.key)
-			value, err := marshalEnv(p, item.Interface(), false)
+			child := settings{prefix: s.prefix + tg.key + "_", separator: s.separator}
+			value, err := encodeStruct(item.Interface(), child, false)
 			if err != nil {
 				return result, err
 			}
@@ -130,7 +137,7 @@ func marshalEnv(prefix string, obj any, idle bool) ([]string, error) {
 		} // switch
 
 		// Set into environment and add to result list.
-		tg.key = fmt.Sprintf("%s%s", prefix, tg.key)
+		tg.key = s.prefix + tg.key
 		if !idle {
 			// Changes the environment if idle == false only.
 			if err := Set(tg.key, tg.value); err != nil {

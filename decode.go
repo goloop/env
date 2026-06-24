@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"net/url"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -56,6 +55,16 @@ func validateStruct(obj any) (reflect.Type, reflect.Value, error) {
 // The obj is a pointer to an initialized object where need to
 // save variables from the environment.
 func unmarshalEnv(prefix string, obj any) error {
+	return decodeStruct(environMap(), obj, settings{
+		prefix:    prefix,
+		separator: defValueSep,
+	})
+}
+
+// The decodeStruct reads values from the source map into the fields of obj,
+// honouring the prefix and the default separator from s. Nested structs are
+// processed recursively with the parent key as a prefix.
+func decodeStruct(source map[string]string, obj any, s settings) error {
 	t, v, err := validateStruct(obj)
 	if err != nil {
 		return err
@@ -67,12 +76,8 @@ func unmarshalEnv(prefix string, obj any) error {
 		return unmarshaler.UnmarshalEnv()
 	}
 
-	// Note: It makes no sense to execute the following code in goroutines,
-	// because the environment variables are global and the access to them
-	// is not thread-safe.
-
 	// Walk through all the fields of the structure
-	// and save data from the environment.
+	// and save data from the source.
 	e := v.Elem()
 	for i := 0; i < e.NumField(); i++ {
 		field := t.Elem().Field(i)
@@ -87,12 +92,12 @@ func unmarshalEnv(prefix string, obj any) error {
 		// Separator value for slices/arrays.
 		sep := field.Tag.Get(tagNameSep)
 		if sep == "" {
-			sep = defValueSep
+			sep = s.separator
 		}
 
 		// Create tag group.
 		tg := &tagGroup{
-			key:   fmt.Sprintf("%s%s", prefix, key),
+			key:   s.prefix + key,
 			value: field.Tag.Get(tagNameValue),
 			sep:   sep,
 		}
@@ -105,14 +110,14 @@ func unmarshalEnv(prefix string, obj any) error {
 			)
 		}
 
-		// If the key exists - take its value from environment.
-		if value, ok := os.LookupEnv(tg.key); ok {
+		// If the key exists - take its value from the source.
+		if value, ok := source[tg.key]; ok {
 			tg.value = value
 		}
 
 		// Set value to field.
 		item := e.Field(i)
-		if err := setFieldValue(&item, tg); err != nil {
+		if err := setFieldValue(source, &item, tg, s); err != nil {
 			return err
 		}
 	}
@@ -120,8 +125,9 @@ func unmarshalEnv(prefix string, obj any) error {
 	return nil
 }
 
-// The setFieldValue sets value to field from the tag arguments.
-func setFieldValue(item *reflect.Value, tg *tagGroup) error {
+// The setFieldValue sets value to field from the tag arguments. The source
+// and s are threaded through for the recursive decoding of nested structs.
+func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, s settings) error {
 	switch item.Kind() {
 	case reflect.Array:
 		max := item.Type().Len()
@@ -160,7 +166,8 @@ func setFieldValue(item *reflect.Value, tg *tagGroup) error {
 		// If a pointer to a structure of the another's types (not a *url.URL).
 		// Perform recursive analysis of nested structure fields.
 		tmp := reflect.New(item.Type().Elem()).Interface()
-		if err := unmarshalEnv(fmt.Sprintf("%s_", tg.key), tmp); err != nil {
+		child := settings{prefix: tg.key + "_", separator: s.separator}
+		if err := decodeStruct(source, tmp, child); err != nil {
 			return err
 		}
 
@@ -177,7 +184,8 @@ func setFieldValue(item *reflect.Value, tg *tagGroup) error {
 		// If a structure of the another's types (not a url.URL).
 		// Perform recursive analysis of nested structure fields.
 		tmp := reflect.New(item.Type()).Interface()
-		if err := unmarshalEnv(fmt.Sprintf("%s_", tg.key), tmp); err != nil {
+		child := settings{prefix: tg.key + "_", separator: s.separator}
+		if err := decodeStruct(source, tmp, child); err != nil {
 			return err
 		}
 
