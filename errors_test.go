@@ -16,12 +16,12 @@ func TestSentinelErrors(t *testing.T) {
 		err  error
 		want error
 	}{
-		{"nil object", Unmarshal("", nil), ErrNilObject},
-		{"not a pointer", Unmarshal("", struct {
+		{"nil object", Unmarshal(nil), ErrNilObject},
+		{"not a pointer", Unmarshal(struct {
 			X int `env:"X"`
 		}{}), ErrNotPointer},
-		{"not a struct", Unmarshal("", &notStruct), ErrNotStruct},
-		{"empty struct", Unmarshal("", &empty), ErrEmptyStruct},
+		{"not a struct", Unmarshal(&notStruct), ErrNotStruct},
+		{"empty struct", Unmarshal(&empty), ErrEmptyStruct},
 	}
 
 	for _, c := range cases {
@@ -31,7 +31,7 @@ func TestSentinelErrors(t *testing.T) {
 	}
 
 	// Marshal with a non-struct value.
-	if _, err := Marshal("", 5); !errors.Is(err, ErrInvalidObject) {
+	if err := Marshal(5); !errors.Is(err, ErrInvalidObject) {
 		t.Errorf("marshal non-struct: expected %v, got %v", ErrInvalidObject, err)
 	}
 }

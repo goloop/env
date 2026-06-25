@@ -4,36 +4,54 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 )
 
-// Marshaler is the interface implemented by types that can marshal
-// themselves into valid object.
+// Marshaler is the interface implemented by types that can marshal themselves
+// into a set of environment values. The returned map holds the key/value pairs;
+// the library decides where they go (environment, map or file).
 type Marshaler interface {
-	MarshalEnv() ([]string, error)
+	MarshalEnv() (map[string]string, error)
 }
 
-// The marshalEnv saves object's fields to environment.
-// Changes the environment if idle == false only.
-//
-// Method supports the following field's types: int, int8, int16, int32, int64,
-// uin, uint8, uin16, uint32, in64, float32, float64, string, bool, url.URL
-// and pointers, array or slice from thous types (i.e. *int, ...,
-// []int, ..., []bool, ..., [2]*url.URL, etc.). The nested structures will be
-// processed recursively.
-//
-// For other filed's types (like chan, map ...) will be returned an error.
+// The pair is a single key/value entry produced by encoding a struct.
+type pair struct {
+	key   string
+	value string
+}
+
+// The marshalEnv encodes obj and writes the result into the environment
+// (unless idle is true), returning the produced "KEY=value" lines. It is the
+// internal entry point kept for compatibility with the existing test suite.
 func marshalEnv(prefix string, obj any, idle bool) ([]string, error) {
-	return encodeStruct(obj, settings{prefix: prefix, separator: defValueSep}, idle)
+	pairs, err := encodeStruct(obj, settings{prefix: prefix, separator: defValueSep})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]string, 0, len(pairs))
+	for _, p := range pairs {
+		if !idle {
+			if err := Set(p.key, p.value); err != nil {
+				return result, err
+			}
+		}
+		result = append(result, p.key+"="+p.value)
+	}
+
+	return result, nil
 }
 
-// The encodeStruct converts the fields of obj into a list of "KEY=value"
-// strings, honouring the prefix and default separator from s. When idle is
-// false the values are also written into the process environment.
-func encodeStruct(obj any, s settings, idle bool) ([]string, error) {
-	var result []string
-
+// The encodeStruct converts the fields of obj into an ordered list of key/value
+// pairs, honouring the prefix and default separator from s. It has no side
+// effects: callers decide whether to write the pairs to the environment, a map
+// or a file.
+//
+// If obj implements Marshaler, its MarshalEnv result is returned with keys
+// sorted for a deterministic order.
+func encodeStruct(obj any, s settings) ([]pair, error) {
 	// Convert *object to object and mean that we use
 	// reflection on the object but not a pointer on it.
 	rt, rv := reflect.TypeOf(obj), reflect.ValueOf(obj)
@@ -44,7 +62,7 @@ func encodeStruct(obj any, s settings, idle bool) ([]string, error) {
 
 	// The obj argument should be a initialized object.
 	if rt.Kind() != reflect.Struct || !rv.IsValid() {
-		return result, ErrInvalidObject
+		return nil, ErrInvalidObject
 	}
 
 	// Get a pointer to the object.
@@ -57,16 +75,15 @@ func encodeStruct(obj any, s settings, idle bool) ([]string, error) {
 		if m := ptr.MethodByName("MarshalEnv"); m.IsValid() {
 			tmp := m.Call([]reflect.Value{}) // len == 2
 			if err, _ := tmp[1].Interface().(error); err != nil {
-				return result, fmt.Errorf("custom marshal method: %w", err)
+				return nil, fmt.Errorf("custom marshal method: %w", err)
 			}
 
-			value := tmp[0].Interface()
-			return value.([]string), nil
+			return mapToPairs(tmp[0].Interface().(map[string]string)), nil
 		}
 	}
 
 	// Walk through the fields.
-	result = make([]string, 0, rv.NumField())
+	result := make([]pair, 0, rv.NumField())
 	for i := 0; i < rv.NumField(); i++ {
 		field := rt.Field(i)
 
@@ -91,7 +108,7 @@ func encodeStruct(obj any, s settings, idle bool) ([]string, error) {
 		}
 
 		if !tg.isValid() {
-			return result, fmt.Errorf(
+			return nil, fmt.Errorf(
 				"the %s field does not have a valid key name value: %s",
 				field.Name,
 				tg.key,
@@ -108,7 +125,7 @@ func encodeStruct(obj any, s settings, idle bool) ([]string, error) {
 		case reflect.Array, reflect.Slice:
 			value, err := getSequence(&item, tg.sep)
 			if err != nil {
-				return result, err
+				return nil, err
 			}
 			tg.value = value
 		case reflect.Struct:
@@ -121,34 +138,42 @@ func encodeStruct(obj any, s settings, idle bool) ([]string, error) {
 			// Another struct.
 			// Recursive analysis of the nested structure.
 			child := settings{prefix: s.prefix + tg.key + "_", separator: s.separator}
-			value, err := encodeStruct(item.Interface(), child, false)
+			nested, err := encodeStruct(item.Interface(), child)
 			if err != nil {
-				return result, err
+				return nil, err
 			}
 
-			result = append(result, value...)
-			continue // value of the recursive field is not to saved
+			result = append(result, nested...)
+			continue // nested struct contributes its own pairs
 		default:
 			value, err := toStr(item)
 			if err != nil {
-				return result, err
+				return nil, err
 			}
 			tg.value = value
 		} // switch
 
-		// Set into environment and add to result list.
-		tg.key = s.prefix + tg.key
-		if !idle {
-			// Changes the environment if idle == false only.
-			if err := Set(tg.key, tg.value); err != nil {
-				return result, err
-			}
-		}
-
-		result = append(result, fmt.Sprintf("%s=%s", tg.key, tg.value))
+		result = append(result, pair{key: s.prefix + tg.key, value: tg.value})
 	} // for
 
 	return result, nil
+}
+
+// The mapToPairs converts a map into a slice of pairs sorted by key so the
+// output order is deterministic (used for custom Marshaler results).
+func mapToPairs(m map[string]string) []pair {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	pairs := make([]pair, 0, len(m))
+	for _, k := range keys {
+		pairs = append(pairs, pair{key: k, value: m[k]})
+	}
+
+	return pairs
 }
 
 // The getSequence get sequence as string.

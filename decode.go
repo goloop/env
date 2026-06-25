@@ -9,10 +9,11 @@ import (
 	"strings"
 )
 
-// Unmarshaler is the interface implements by types that can
-// unmarshal an environment variables of themselves.
+// Unmarshaler is the interface implemented by types that can unmarshal
+// themselves from a set of environment values. The data map holds the
+// already-resolved (expanded) key/value pairs of the source.
 type Unmarshaler interface {
-	UnmarshalEnv() error
+	UnmarshalEnv(data map[string]string) error
 }
 
 // The validateStruct checks whether the object is a pointer to the structure,
@@ -73,7 +74,7 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 	// If objects implements Unmarshaler interface
 	// try to calling a custom Unmarshal method.
 	if unmarshaler, ok := obj.(Unmarshaler); ok {
-		return unmarshaler.UnmarshalEnv()
+		return unmarshaler.UnmarshalEnv(source)
 	}
 
 	// Walk through all the fields of the structure

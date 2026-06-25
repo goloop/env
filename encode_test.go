@@ -16,25 +16,13 @@ type configEncode struct {
 	AllowedHosts []string `env:"ALLOWED_HOSTS" sep:":"`
 }
 
-// MarshalEnv the custom method for marshalling.
-func (c *configEncode) MarshalEnv() ([]string, error) {
-	tests := [][]string{
-		{"HOST", "192.168.0.1"},
-		{"PORT", "80"},
-		{"ALLOWED_HOSTS", "localhost"},
-	}
-
-	for _, item := range tests {
-		err := Set(item[0], item[1])
-		if err != nil {
-			return []string{}, err
-		}
-	}
-
-	return []string{
-		"HOST=192.168.0.1",
-		"PORT=80",
-		"ALLOWED_HOSTS=localhost",
+// MarshalEnv the custom method for marshalling. It only returns the key/value
+// pairs; the library writes them where needed.
+func (c *configEncode) MarshalEnv() (map[string]string, error) {
+	return map[string]string{
+		"HOST":          "192.168.0.1",
+		"PORT":          "80",
+		"ALLOWED_HOSTS": "localhost",
 	}, nil
 }
 
@@ -42,8 +30,8 @@ func (c *configEncode) MarshalEnv() ([]string, error) {
 type configEncodeErr struct{}
 
 // MarshalEnv the custom method for marshalling - always returns an error.
-func (c *configEncodeErr) MarshalEnv() ([]string, error) {
-	return []string{}, errors.New("error message")
+func (c *configEncodeErr) MarshalEnv() (map[string]string, error) {
+	return nil, errors.New("error message")
 }
 
 // TestUnmarshalEnvCustomMarshalErr tests custom marshalEnv with error.
@@ -631,8 +619,8 @@ func TestUnmarshalMultiService(t *testing.T) {
 		t.Error(err)
 	}
 
-	Unmarshal("SERVICE_A_", &serverA)
-	Unmarshal("SERVICE_B_", &serverB)
+	Unmarshal(&serverA, WithPrefix("SERVICE_A_"))
+	Unmarshal(&serverB, WithPrefix("SERVICE_B_"))
 
 	if v := serverA.Name; v != "A" {
 		t.Errorf("expected `A` but `%s`", v)

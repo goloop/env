@@ -17,7 +17,7 @@ type configDecode struct {
 }
 
 // UnmarshalEnv the custom method for unmarshalling data from the environment.
-func (c *configDecode) UnmarshalEnv() error {
+func (c *configDecode) UnmarshalEnv(_ map[string]string) error {
 	// You can use different methods to get data from the environment
 	// like os.Getenv or env.Get and process the result according
 	// to custom requirements.
@@ -31,7 +31,7 @@ func (c *configDecode) UnmarshalEnv() error {
 type configDecodeErr struct{}
 
 // UnmarshalEnv the custom method for unmarshalling - always returns an error.
-func (c *configDecodeErr) UnmarshalEnv() error {
+func (c *configDecodeErr) UnmarshalEnv(_ map[string]string) error {
 	return errors.New("error message")
 }
 
@@ -898,8 +898,8 @@ func TestMarshalMultiService(t *testing.T) {
 		serverB = server{Name: "B"}
 	)
 
-	Marshal("SERVICE_A_", serverA)
-	Marshal("SERVICE_B_", serverB)
+	Marshal(serverA, WithPrefix("SERVICE_A_"))
+	Marshal(serverB, WithPrefix("SERVICE_B_"))
 
 	if v := os.Getenv("SERVICE_A_NAME"); v != "A" {
 		t.Errorf("expected `A` but `%s`", v)

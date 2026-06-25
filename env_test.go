@@ -34,34 +34,34 @@ func TestLoad(t *testing.T) {
 	}
 }
 
-// TestLoadSafe tests LoadSafe function.
-func TestLoadSafe(t *testing.T) {
+// TestLoadRaw tests the LoadRaw function.
+func TestLoadRaw(t *testing.T) {
 	os.Clearenv()
 	if err := Set("KEY_0", "default"); err != nil {
 		t.Error(err)
 	}
 
 	// Load env-file.
-	if err := LoadSafe("./fixtures/variables.env"); err != nil {
+	if err := LoadRaw("./fixtures/variables.env"); err != nil {
 		t.Error(err)
 	}
 
 	// Expand test.
-	// LoadSafe don't expand vars.
+	// LoadRaw doesn't expand vars.
 	if v := os.Getenv("KEY_2"); v != "${KEY_0}01" {
 		t.Errorf("expected value `${KEY_0}01` but `%s`.", v)
 	}
 }
 
-// TestUpdate tests Update function.
-func TestUpdate(t *testing.T) {
+// TestOverload tests the Overload function.
+func TestOverload(t *testing.T) {
 	os.Clearenv()
 	if err := Set("KEY_0", "default"); err != nil {
 		t.Error(err)
 	}
 
 	// Load env-file.
-	if err := Update("./fixtures/variables.env"); err != nil {
+	if err := Overload("./fixtures/variables.env"); err != nil {
 		t.Error(err)
 	}
 
@@ -82,20 +82,20 @@ func TestUpdate(t *testing.T) {
 	}
 }
 
-// TestUpdateSafe tests UpdateSafe function.
-func TestUpdateSafe(t *testing.T) {
+// TestOverloadRaw tests the OverloadRaw function.
+func TestOverloadRaw(t *testing.T) {
 	os.Clearenv()
 	if err := Set("KEY_0", "default"); err != nil {
 		t.Error(err)
 	}
 
 	// Load env-file.
-	if err := UpdateSafe("./fixtures/variables.env"); err != nil {
+	if err := OverloadRaw("./fixtures/variables.env"); err != nil {
 		t.Error(err)
 	}
 
 	// Expand test.
-	// UpdateSafe don't expand vars.
+	// OverloadRaw doesn't expand vars.
 	if v := Get("KEY_2"); v != "${KEY_0}01" {
 		t.Errorf("expected value `${KEY_0}01` but `%s`.", v)
 	}
@@ -126,8 +126,8 @@ func TestExist(t *testing.T) {
 	}
 }
 
-// TestSave tests Save function.
-func TestSave(t *testing.T) {
+// TestMarshalFile tests the MarshalFile function.
+func TestMarshalFile(t *testing.T) {
 	data := struct {
 		Host string `env:"HOST"`
 		Port int    `env:"PORT"`
@@ -136,9 +136,11 @@ func TestSave(t *testing.T) {
 		Port: 8080,
 	}
 
-	// Save object.
+	// Write object to a file.
 	os.Clearenv()
-	Save("/tmp/.env", "", data)
+	if err := MarshalFile("/tmp/.env", data); err != nil {
+		t.Error(err)
+	}
 
 	// Not chanage environment.
 	if h, p := os.Getenv("HOST"), os.Getenv("PORT"); h != "" || p != "" {

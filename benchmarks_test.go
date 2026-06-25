@@ -62,7 +62,7 @@ func BenchmarkMarshalSimple(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Marshal("TEST_", config)
+		Marshal(config, WithPrefix("TEST_"))
 	}
 }
 
@@ -74,7 +74,7 @@ func BenchmarkUnmarshalSimple(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var config testConfig
-		Unmarshal("TEST_", &config)
+		Unmarshal(&config, WithPrefix("TEST_"))
 	}
 }
 
@@ -110,7 +110,7 @@ func BenchmarkParallelUnmarshal(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			var config testConfig
-			Unmarshal("TEST_", &config)
+			Unmarshal(&config, WithPrefix("TEST_"))
 		}
 	})
 }
@@ -121,7 +121,7 @@ func BenchmarkURLParsing(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var config testConfig
-		Unmarshal("", &config)
+		Unmarshal(&config)
 	}
 }
 

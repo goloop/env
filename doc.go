@@ -50,7 +50,7 @@
 //	        log.Fatal(err)
 //	    }
 //	    // Map environment variables to structure
-//	    if err := env.Unmarshal("", &cfg); err != nil {
+//	    if err := env.Unmarshal(&cfg); err != nil {
 //	        log.Fatal(err)
 //	    }
 //	}

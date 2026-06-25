@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"strings"
@@ -215,28 +216,61 @@ func isEmpty(str string) bool {
 //	// PORT=80
 //	// EMAIL=goloop@goloop.one
 func readParseStore(filename string, expand, update, forced bool) error {
-	// A parsed key/value entry from the env-file.
-	type entry struct {
-		key      string
-		value    string
-		expanded bool // value may contain ${var}/$var to expand
-	}
-
-	// Try to open env-file in read only mode.
 	file, err := os.OpenFile(filename, os.O_RDONLY, 0)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	// Read and parse the file sequentially. Parsing a small env-file is a
-	// few string operations per line, so goroutines/channels would only add
-	// coordination overhead; the apply step below must stay ordered anyway
-	// (expansion depends on earlier keys already being set).
-	var entries []entry
+	entries, err := scanEntries(file, forced)
+	if err != nil {
+		return err
+	}
 
-	// Read and parse line by line.
-	scanner := bufio.NewScanner(file)
+	// Apply entries to the environment in file order. Order matters in
+	// expand mode: KEY_1=${KEY_0} must see the value KEY_0 had at that
+	// point (e.g. before a later KEY_0 override):
+	//
+	//	KEY_0=VALUE_0
+	//	KEY_1=${KEY_0}7   // -> VALUE_07
+	//	KEY_0=VALUE_1     // overrides KEY_0 afterwards
+	for _, e := range entries {
+		if _, ok := os.LookupEnv(e.key); update || !ok {
+			value := e.value
+			if expand && e.expandable() && strings.Contains(value, "$") {
+				value = os.ExpandEnv(value)
+			}
+			if err := os.Setenv(e.key, value); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// The rawEntry is a parsed but not-yet-expanded key/value entry. The quote is
+// the kind of quote that wrapped the value (0 if unquoted); it decides whether
+// variable expansion applies.
+type rawEntry struct {
+	key   string
+	value string
+	quote rune
+}
+
+// expandable reports whether the value may have ${var}/$var expanded: only
+// unquoted and double-quoted values; single quotes and backticks are literal.
+func (e rawEntry) expandable() bool {
+	return e.quote != '\'' && e.quote != '`'
+}
+
+// The scanEntries reads r and parses it into ordered raw entries, honouring
+// multiline quoted values. When forced is true malformed lines are skipped
+// instead of returning an error.
+func scanEntries(r io.Reader, forced bool) ([]rawEntry, error) {
+	var entries []rawEntry
+
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		text := scanner.Text()
 
@@ -268,42 +302,45 @@ func readParseStore(filename string, expand, update, forced bool) error {
 			if forced {
 				continue // ignore the wrong line
 			}
-			return err
+			return nil, err
 		}
 
-		// Variable expansion (${var}/$var) applies to unquoted and
-		// double-quoted values only. Single quotes and backticks are
-		// literal per the dotenv specification, so `$` stays as-is.
-		expanded := expand && quote != '\'' && quote != '`' &&
-			strings.Contains(value, "$")
-
-		entries = append(entries, entry{key: key, value: value, expanded: expanded})
+		entries = append(entries, rawEntry{key: key, value: value, quote: quote})
 	}
 
 	if err := scanner.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
-	// Apply entries to the environment in file order. Order matters in
-	// expand mode: KEY_1=${KEY_0} must see the value KEY_0 had at that
-	// point (e.g. before a later KEY_0 override):
-	//
-	//	KEY_0=VALUE_0
-	//	KEY_1=${KEY_0}7   // -> VALUE_07
-	//	KEY_0=VALUE_1     // overrides KEY_0 afterwards
-	for _, e := range entries {
-		if _, ok := os.LookupEnv(e.key); update || !ok {
-			value := e.value
-			if e.expanded {
-				value = os.ExpandEnv(value)
-			}
-			if err := os.Setenv(e.key, value); err != nil {
-				return err
-			}
+	return entries, nil
+}
+
+// The parse reads r into a map of key/value pairs. When expand is true,
+// ${var}/$var references in unquoted and double-quoted values are resolved
+// against the already-parsed keys and, as a fallback, the process environment.
+func parse(r io.Reader, expand bool) (map[string]string, error) {
+	entries, err := scanEntries(r, false)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]string, len(entries))
+	lookup := func(key string) string {
+		if v, ok := result[key]; ok {
+			return v
 		}
+		return os.Getenv(key)
 	}
 
-	return nil
+	for _, e := range entries {
+		value := e.value
+		if expand && e.expandable() && strings.Contains(value, "$") {
+			value = os.Expand(value, lookup)
+		}
+		result[e.key] = value
+	}
+
+	return result, nil
 }
 
 // The splitN function splits the string at the specified rune separator,
