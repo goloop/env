@@ -1,65 +1,90 @@
-// Package env provides a comprehensive solution for managing environment
-// variables in Go applications. It offers a rich set of features for handling
-// environment configuration through both .env files and runtime environment
-// variables.
+// Package env bridges .env files, the process environment and Go structures.
 //
-// Core Features:
-//   - Loading .env files into the process environment with override control
-//   - Bidirectional mapping between environment variables and Go structures
-//   - Support for nested structures and complex data types
-//   - Advanced type conversion with validation
-//   - URL parsing and validation support
-//   - Flexible prefix-based filtering
-//   - Custom marshaling and unmarshaling interfaces
+// It does three things:
 //
-// The package supports loading configuration from .env files with features like:
-//   - Variable expansion (${VAR} or $VAR syntax)
-//   - Quoted values with escape sequences
-//   - Comments and inline comments
-//   - Export statements
-//   - Multi-line values
-//   - Default values
-//   - Custom separators for arrays/slices
+//  1. Loads .env files into the process environment (a godotenv-style API:
+//     Load, Overload, LoadRaw, OverloadRaw, LoadReader).
+//  2. Maps the environment to and from Go structs (an encoding/json-style API:
+//     Unmarshal, Marshal and their Map/File variants) with struct tags,
+//     defaults, validation and rich type support.
+//  3. Parses .env data into plain maps without side effects (Read, Parse).
 //
-// Type Support:
-// The package handles all common Go types including:
-//   - Basic types: string, bool, int/uint (all sizes), float32/64
-//   - Complex types: url.URL, custom structs
-//   - Collections: arrays, slices
-//   - Nested structures with automatic prefix handling
-//   - Pointers to supported types
+// # Loading
 //
-// Structure Tags:
-//   - env: specifies the environment variable name
-//   - def: provides default values
-//   - sep: defines separator for array/slice values
+// Load and friends read one or more .env files (variadic; with no argument
+// they default to ".env") into the process environment. Load keeps existing
+// keys; Overload overwrites them. The Raw variants do not expand ${VAR}/$VAR.
 //
-// Example usage:
+//	if err := env.Load(".env"); err != nil {
+//	    log.Fatal(err)
+//	}
+//
+// # Decoding into a struct
+//
+// Unmarshal reads the process environment into a struct; UnmarshalMap and
+// UnmarshalFile read a map or a file directly without touching the
+// environment.
 //
 //	type Config struct {
-//	    Host    string   `env:"HOST" def:"localhost"`
-//	    Port    int      `env:"PORT" def:"8080"`
-//	    IPs     []string `env:"ALLOWED_IPS" sep:","`
-//	    APIUrl  url.URL  `env:"API_URL"`
+//	    Host    string        `env:"HOST"`
+//	    Port    int           `env:"PORT" def:"80"`
+//	    Hosts   []string      `env:"ALLOWED_HOSTS" sep:":"`
+//	    Timeout time.Duration `env:"TIMEOUT" def:"30s"`
 //	}
 //
-//	func main() {
-//	    var cfg Config
-//	    // Load .env file and parse it
-//	    if err := env.Load(".env"); err != nil {
-//	        log.Fatal(err)
-//	    }
-//	    // Map environment variables to structure
-//	    if err := env.Unmarshal(&cfg); err != nil {
-//	        log.Fatal(err)
-//	    }
+//	var cfg Config
+//	if err := env.Unmarshal(&cfg); err != nil {
+//	    log.Fatal(err)
 //	}
 //
-// The package is designed to be efficient and to follow Go idioms, with proper
-// error management and a clean API for complex configuration scenarios.
+// # Encoding a struct
 //
-// Note that loading and marshaling operate on the global process environment.
-// Beyond the guarantees of the standard os package there is no extra
-// synchronization, so callers should not load and read the same keys
-// concurrently.
+// Marshal writes a struct into the environment; MarshalMap and MarshalFile
+// produce a map or a file without changing the environment.
+//
+// # Options
+//
+// Options set call-level defaults that a per-field tag can override
+// (precedence: field tag > option > built-in default):
+//
+//   - WithPrefix sets a key namespace; levels are joined with "_", so
+//     WithPrefix("APP") maps PORT to APP_PORT.
+//   - WithSeparator sets the default list separator.
+//   - WithTimeLayout sets the default time.Time layout.
+//
+// # Struct tags
+//
+//   - env: the key name; "-" ignores the field; an inline "required" flag
+//     (env:"KEY,required") makes it mandatory.
+//   - def: a default value used when the key is absent.
+//   - sep: the separator for slice/array values (default: a space).
+//   - layout: the layout for time.Time fields (default: RFC3339).
+//
+// # Supported types
+//
+// All sized int/uint, float32/64, string, bool, url.URL, time.Duration,
+// time.Time, nested structs, pointers and slices/arrays of these.
+//
+// # Custom marshaling
+//
+// Types implementing Marshaler or Unmarshaler take full control, mirroring
+// encoding/json: MarshalEnv returns a map of key/value pairs and UnmarshalEnv
+// receives the resolved source map.
+//
+// # The .env format
+//
+// The parser follows the de-facto .env specification: single/double/backtick
+// quotes, escape sequences in double quotes (\n, \t, \r, \\, \"), multi-line
+// quoted values, full-line and inline comments, the optional export prefix and
+// ${VAR}/$VAR expansion (in unquoted and double-quoted values only).
+//
+// # Concurrency
+//
+// Loading and marshaling act on the global process environment. Beyond the
+// guarantees of the standard os package there is no extra synchronization, so
+// callers should not load and read the same keys concurrently. The map- and
+// file-based variants (Read, Parse, UnmarshalMap, MarshalMap, UnmarshalFile,
+// MarshalFile) have no global side effects.
+//
+// See DOC.md (English) and DOC.UK.md (Ukrainian) for the full reference.
 package env

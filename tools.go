@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // The sts function converts a slice or an array of any type to a string.
@@ -371,7 +372,6 @@ func splitN(str, sep string, n int) (r []string) {
 	var (
 		level int
 		host  rune
-		char  rune
 
 		flips    = map[rune]rune{'}': '{', ']': '[', ')': '('}
 		quotes   = "\"'`"
@@ -380,8 +380,15 @@ func splitN(str, sep string, n int) (r []string) {
 
 	if n == 0 {
 		return r
-	} else if n == 1 {
+	}
+	if n == 1 {
 		return []string{str}
+	}
+	if str == "" {
+		return r // an empty value yields no elements
+	}
+	if sep == "" {
+		return []string{str} // an empty separator cannot split
 	}
 
 	// The contains returns true if all items from the separators
@@ -399,33 +406,16 @@ func splitN(str, sep string, n int) (r []string) {
 		return true
 	}
 
-	// Work on runes, not bytes: indexing str[i] by byte corrupts multi-byte
-	// values and separators (e.g. Cyrillic, emoji). Converting to []rune once
-	// also keeps the loop O(n) instead of O(n^2).
-	runes := []rune(str)
-	sepRunes := []rune(sep)
-	sepLen := len(sepRunes)
-
-	// The matchSep reports whether the separator occurs at position i.
-	matchSep := func(i int) bool {
-		if sepLen == 0 || i+sepLen > len(runes) {
-			return false
-		}
-		for j := 0; j < sepLen; j++ {
-			if runes[i+j] != sepRunes[j] {
-				return false
-			}
-		}
-		return true
-	}
-
-	// Pre-allocate based on the actual separator (not a hard-coded comma).
+	// Work on byte offsets of the original string: runes are decoded only to
+	// drive the grouping state machine, but segments are cut from the original
+	// bytes. This keeps valid UTF-8 correct, preserves invalid bytes verbatim
+	// and matches multi-byte separators exactly.
 	r = make([]string, 0, strings.Count(str, sep)+1)
 
-	// Split value.
-	var sb strings.Builder
-	for i := 0; i < len(runes); i++ {
-		char = runes[i]
+	segStart := 0
+	for i := 0; i < len(str); {
+		char, size := utf8.DecodeRuneInString(str[i:])
+
 		switch {
 		case level == 0 && contains(quotes+brackets, char):
 			host, level = char, level+1
@@ -436,27 +426,23 @@ func splitN(str, sep string, n int) (r []string) {
 			if level <= 0 {
 				level, host = 0, 0
 			}
-		case level == 0 && matchSep(i):
-			r = append(r, sb.String())
-			sb.Reset()
-			if n > 0 && n == len(r)+1 {
+		case level == 0 && strings.HasPrefix(str[i:], sep):
+			r = append(r, str[segStart:i])
+			i += len(sep)
+			segStart = i
+			if n > 0 && len(r) == n-1 {
 				// The last element is the unsplit remainder.
-				return append(r, string(runes[i+sepLen:]))
+				return append(r, str[segStart:])
 			}
-			i += sepLen - 1
 			continue
 		}
 
-		sb.WriteRune(char)
+		i += size
 	}
 
-	// Add last piece to the result (including a trailing empty
-	// field when the string ends with the separator).
-	if sb.Len() != 0 || string(char) == sep {
-		r = append(r, sb.String())
-	}
-
-	return
+	// The final segment (an empty trailing field when the string ends with
+	// the separator).
+	return append(r, str[segStart:])
 }
 
 // The expandEscapes interprets backslash escape sequences inside

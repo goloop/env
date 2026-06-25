@@ -72,11 +72,11 @@ The `benchstat` tool will show statistical analysis of the changes:
 
 Example output:
 ```
-name        old time/op  new time/op  delta
-JSONSmall-8  387ns ± 1%  350ns ± 2%  -9.56%  (p=0.008)
+name       old time/op  new time/op  delta
+SplitN-8   387ns ± 1%   350ns ± 2%   -9.56%  (p=0.008)
 ```
 
-This shows your changes made the JSONSmall benchmark 9.56% faster, and this improvement is statistically significant.
+This shows your changes made the `SplitN` benchmark 9.56% faster, and this improvement is statistically significant.
 
 Note: While absolute performance numbers may vary between different machines, running benchmarks on the same machine for both branches allows for meaningful relative comparisons.
 
@@ -84,7 +84,7 @@ Note: While absolute performance numbers may vary between different machines, ru
 
 - Follow standard Go code style and conventions
 - Use `gofmt` to format your code
-- Run `golint` and `go vet` to catch common issues
+- Run `go vet` (and optionally `staticcheck`) to catch common issues
 - Add comments for exported functions and types
 - Update documentation if necessary
 
@@ -104,12 +104,12 @@ If you've added or modified functionality:
 
 Example:
 ```
-Add gzip compression support for JSON responses
+Add time.Duration support to struct decoding
 
-- Implement transparent compression for large responses
-- Add compression threshold configuration
-- Update documentation with compression examples
-- Add benchmarks for compressed responses
+- Parse duration values such as 30s and 1h30m
+- Add a layout tag for time.Time fields
+- Update documentation with time examples
+- Add tests for duration and time decoding
 
 Fixes #123
 ```

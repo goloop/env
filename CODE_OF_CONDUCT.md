@@ -41,7 +41,7 @@ Examples of representing our community include using an official email address, 
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement at goloop.one@gmail.com.
 
 All complaints will be reviewed and investigated promptly and fairly.
 
