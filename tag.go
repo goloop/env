@@ -9,6 +9,7 @@ type tagGroup struct {
 	sep      string // separator between value items (for sequences)
 	layout   string // time layout for time.Time fields
 	required bool   // field must be present in the source
+	present  bool   // the key was present in the source
 }
 
 // The isValid method returns true if the key name is valid.

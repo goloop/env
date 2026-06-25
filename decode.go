@@ -6,8 +6,22 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 )
+
+// The hasKeyPrefix reports whether the source has at least one key starting
+// with the given prefix. It decides whether an optional nested-struct pointer
+// should be allocated.
+func hasKeyPrefix(source map[string]string, prefix string) bool {
+	for key := range source {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
 
 // Unmarshaler is the interface implemented by types that can unmarshal
 // themselves from a set of environment values. The data map holds the
@@ -83,6 +97,12 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 	for i := 0; i < e.NumField(); i++ {
 		field := t.Elem().Field(i)
 
+		// Skip unexported fields (cannot be set via reflection), as
+		// encoding/json does.
+		if field.PkgPath != "" {
+			continue
+		}
+
 		// Get parameters from tags.
 		// The name of the key and the inline flags (e.g. required).
 		name, required := parseEnvTag(field.Tag.Get(tagNameKey))
@@ -128,6 +148,7 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 		if ok {
 			tg.value = value
 		}
+		tg.present = ok
 
 		// A required field must be present in the source unless a default
 		// is provided.
@@ -170,30 +191,39 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 
 		item.Set(reflect.AppendSlice(*item, tmp))
 	case reflect.Ptr:
-		if item.Type().Elem().Kind() != reflect.Struct {
-			// If the pointer of a structure.
-			tmp := reflect.Indirect(*item)
-			if err := setValue(tmp, tg.value, tg.layout); err != nil {
-				return err
+		// A nil pointer means "absent value" and is allocated only when there
+		// is something to assign; otherwise the optional pointer stays nil.
+		elemType := item.Type().Elem()
+		isLeaf := elemType.Kind() != reflect.Struct ||
+			elemType == reflect.TypeOf(url.URL{}) ||
+			elemType == reflect.TypeOf(time.Time{})
+
+		if isLeaf {
+			// Scalar, url.URL or time.Time: allocate only when the key was
+			// present or a default is set.
+			if item.IsNil() {
+				if !tg.present && tg.value == "" {
+					break
+				}
+				item.Set(reflect.New(elemType))
 			}
-			break
-		} else if item.Type() == reflect.TypeOf((*url.URL)(nil)) ||
-			item.Type() == reflect.TypeOf((*time.Time)(nil)) {
-			// A pointer to a leaf type handled by setValue.
-			if err := setValue(*item, tg.value, tg.layout); err != nil {
+			if err := setValue(item.Elem(), tg.value, tg.layout); err != nil {
 				return err
 			}
 			break
 		}
 
-		// If a pointer to a structure of the another's types (not a *url.URL).
-		// Perform recursive analysis of nested structure fields.
-		tmp := reflect.New(item.Type().Elem()).Interface()
-		if err := decodeStruct(source, tmp, child); err != nil {
+		// Pointer to a nested struct: allocate only when the source has at
+		// least one key under this prefix, then decode recursively.
+		if item.IsNil() {
+			if !hasKeyPrefix(source, tg.key+"_") {
+				break
+			}
+			item.Set(reflect.New(elemType))
+		}
+		if err := decodeStruct(source, item.Interface(), child); err != nil {
 			return err
 		}
-
-		item.Set(reflect.ValueOf(tmp))
 	case reflect.Struct:
 		if item.Type() == reflect.TypeOf(url.URL{}) ||
 			item.Type() == reflect.TypeOf(time.Time{}) {

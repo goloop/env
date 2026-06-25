@@ -65,6 +65,9 @@
 // All sized int/uint, float32/64, string, bool, url.URL, time.Duration,
 // time.Time, nested structs, pointers and slices/arrays of these.
 //
+// A pointer field is optional: it is decoded as nil when its key is absent and
+// omitted on encode, so optional values round-trip (see DOC.md for details).
+//
 // # Custom marshaling
 //
 // Types implementing Marshaler or Unmarshaler take full control, mirroring

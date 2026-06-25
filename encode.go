@@ -53,6 +53,10 @@ func marshalEnv(prefix string, obj any, idle bool) ([]string, error) {
 // If obj implements Marshaler, its MarshalEnv result is returned with keys
 // sorted for a deterministic order.
 func encodeStruct(obj any, s settings) ([]pair, error) {
+	if obj == nil {
+		return nil, ErrNilObject
+	}
+
 	// Convert *object to object and mean that we use
 	// reflection on the object but not a pointer on it.
 	rt, rv := reflect.TypeOf(obj), reflect.ValueOf(obj)
@@ -87,6 +91,11 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 	result := make([]pair, 0, rv.NumField())
 	for i := 0; i < rv.NumField(); i++ {
 		field := rt.Field(i)
+
+		// Skip unexported fields, as encoding/json does.
+		if field.PkgPath != "" {
+			continue
+		}
 
 		// Get parameters from tags.
 		// The name of the key and the inline flags.
@@ -126,9 +135,13 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 			)
 		}
 
-		// Get item.
+		// Get item. A nil pointer field means "absent value": skip it so the
+		// key is omitted (it round-trips back to nil on decode).
 		item := rv.Field(i)
 		if item.Kind() == reflect.Ptr {
+			if item.IsNil() {
+				continue
+			}
 			item = item.Elem()
 		}
 
@@ -195,59 +208,39 @@ func mapToPairs(m map[string]string) []pair {
 	return pairs
 }
 
-// The getSequence get sequence as string.
+// The getSequence joins the elements of a slice or array into a string. A nil
+// pointer element is written as an empty value at its position (so it
+// round-trips back to a nil element on decode).
 func getSequence(item *reflect.Value, sep, layout string) (string, error) {
-	var (
-		kind reflect.Kind
-		max  int
-	)
-
-	// Type checking and instance adjustment.
+	var max int
 	switch item.Kind() {
 	case reflect.Array:
-		kind = item.Index(0).Kind()
 		max = item.Type().Len()
 	case reflect.Slice:
-		tmp := reflect.MakeSlice(item.Type(), 1, 1)
-		kind = tmp.Index(0).Kind()
 		max = item.Len()
 	default:
 		return "", fmt.Errorf("incorrect type: %s", item.Type())
 	}
 
-	// Use strings.Builder for efficient string concatenation.
 	var sb strings.Builder
-
-	// For pointers and structures.
-	if kind == reflect.Ptr || kind == reflect.Struct {
-		for i := 0; i < max; i++ {
-			elem := item.Index(i)
-			if kind == reflect.Ptr {
-				elem = item.Index(i).Elem()
-			}
-
-			v, err := toStr(elem, layout)
-			if err != nil {
-				return "", err
-			}
-
-			if i > 0 {
-				sb.WriteString(sep)
-			}
-			sb.WriteString(v)
+	for i := 0; i < max; i++ {
+		if i > 0 {
+			sb.WriteString(sep)
 		}
-	} else {
-		for i := 0; i < max; i++ {
-			v, err := toStr(item.Index(i), layout)
-			if err != nil {
-				return "", err
-			}
 
-			if i > 0 {
-				sb.WriteString(sep)
+		elem := item.Index(i)
+		if elem.Kind() == reflect.Ptr {
+			if elem.IsNil() {
+				continue // nil element -> empty value at this position
 			}
-			sb.WriteString(v)
+			elem = elem.Elem()
 		}
+
+		v, err := toStr(elem, layout)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(v)
 	}
 
 	return sb.String(), nil

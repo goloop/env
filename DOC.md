@@ -314,6 +314,40 @@ Arrays enforce their length: decoding more elements than the array can hold is
 an error. Decoding an empty value yields an empty slice (and leaves an array at
 its zero values).
 
+### Optional fields (pointers)
+
+A pointer field models an *optional* value: a nil pointer means "absent". The
+package handles absence consistently in both directions, so optional values
+round-trip:
+
+- **Decode** allocates a pointer only when there is a value to assign — the key
+  is present (even if empty), or a `def` is set. If the key is absent and there
+  is no default, the pointer stays `nil`.
+- **Encode** omits a nil pointer (no key is written).
+- A **nil element of a pointer slice** is positional: it is written as an empty
+  value at its position (`[]*int{a, nil, b}` → `"1,,3"`).
+- For a **nil pointer to a nested struct**, decoding allocates it only when the
+  source has at least one key under its prefix; otherwise it stays `nil`.
+
+```go
+type Config struct {
+	Port *int `env:"PORT"` // nil when PORT is unset, *value when it is
+}
+```
+
+Why this design:
+
+- **No `null` in `.env`.** Unlike JSON, a `.env` file has no null literal — a
+  key is either set to a string or absent. The faithful representation of
+  "unset" is therefore an absent key, which is exactly what encode produces and
+  decode consumes. As a result `MarshalMap` → `UnmarshalMap` returns nil
+  pointers back to `nil`.
+- **It mirrors `encoding/json`.** `json.Unmarshal` allocates a pointer only when
+  the key is present and leaves it nil otherwise — the same rule here.
+- **It preserves optionality.** The whole point of a pointer in a config struct
+  is to distinguish "not set" (`nil`) from "set to the zero value" (a pointer to
+  `0`/`""`). Always allocating would erase that distinction.
+
 ## Custom marshaling
 
 Implement these interfaces to take full control of a type, exactly like
