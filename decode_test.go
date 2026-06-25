@@ -261,11 +261,15 @@ func TestUnmarshalEnvBool(t *testing.T) {
 			"TRUE":  true,
 			"False": false,
 			"FALSE": false,
+			"yes":   true,
+			"no":    false,
+			"on":    true,
+			"off":   false,
+			"YES":   true,
+			"Off":   false,
 		}
 		incorrect = []string{
 			"ok",
-			"yes",
-			"no",
 			"0xff",
 			"true/false",
 		}

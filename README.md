@@ -214,7 +214,7 @@ type Config struct {
 |-----|---------|---------|
 | `env` | key name; `-` ignores the field; `,required` marks it mandatory | field name |
 | `def` | default value when the key is absent | zero value |
-| `sep` | separator for slices/arrays | a single space |
+| `sep` | separator for slices/arrays | a comma |
 | `layout` | layout for `time.Time` (Go layout or a constant name like `DateOnly`) | RFC3339 |
 
 ## Supported types

@@ -576,12 +576,14 @@ func parseExpression(exp string) (key, value string, quote rune, err error) {
 		quote = '`'
 	}
 
-	if quote == 0 && strings.Contains(value, "#") {
-		// Split by sharp sign and for string without quotes -
-		// the first element has the meaning only.
-		chunks := strings.Split(value, "#")
-		chunks = strings.Split(chunks[0], " ")
-		value = strings.TrimSpace(chunks[0])
+	if quote == 0 {
+		// For an unquoted value a '#' starts an inline comment only when it is
+		// preceded by whitespace. A '#' at the start of the value or inside a
+		// token is literal (so values like a hex colour #fff, a URL fragment
+		// or pass#word are preserved). Only the comment is removed.
+		if i := inlineCommentIndex(value); i >= 0 {
+			value = strings.TrimRight(value[:i], " \t")
+		}
 	} else if quote != 0 {
 		// Extract the quoted content with a single escape-aware pass:
 		// find the matching closing quote (a backslash escapes the next
@@ -621,4 +623,18 @@ func parseQuoted(s string, quote byte) (string, bool) {
 	}
 
 	return "", false
+}
+
+// The inlineCommentIndex returns the index of the '#' that starts an inline
+// comment in an unquoted value - that is, the first '#' preceded by whitespace.
+// A '#' at the start of the value or inside a token is literal, so it returns
+// -1 in that case.
+func inlineCommentIndex(s string) int {
+	for i := 1; i < len(s); i++ {
+		if s[i] == '#' && (s[i-1] == ' ' || s[i-1] == '\t') {
+			return i
+		}
+	}
+
+	return -1
 }

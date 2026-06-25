@@ -240,7 +240,7 @@ env.Unmarshal(&db, env.WithPrefix("DB"))   // reads DB_PORT
 ### WithSeparator
 
 Sets the default separator for slice/array fields without a `sep` tag. The
-built-in default is a single space.
+built-in default is a comma.
 
 ```go
 type Config struct {
@@ -308,7 +308,7 @@ secret fields you never want mapped.
 | Category | Types |
 |----------|-------|
 | Strings  | `string` |
-| Booleans | `bool` (`true`/`false`, also `1`/`0`, `t`/`f`, … per `strconv.ParseBool`) |
+| Booleans | `bool` (`true`/`false`, `1`/`0`, `t`/`f` per `strconv.ParseBool`, plus `yes`/`no` and `on`/`off`, case-insensitive) |
 | Integers | `int`, `int8`, `int16`, `int32`, `int64` (with range checks) |
 | Unsigned | `uint`, `uint8`, `uint16`, `uint32`, `uint64` (with range checks) |
 | Floats   | `float32`, `float64` (shortest round-tripping representation) |
@@ -496,12 +496,23 @@ line three"
 
 ```ini
 # A full-line comment.
-KEY=value   # an inline comment
+KEY=value          # an inline comment (note the space before #)
+PASSWORD=p@ss#word # no space before #: the # is part of the value
+COLOR=#fff         # a leading # is part of the value
 NOTE="a # inside quotes is part of the value"
 ```
 
-A `#` starts a comment only outside quotes. If your value contains `#`, quote
-it.
+Outside quotes, a `#` starts a comment **only when it is preceded by
+whitespace**. A `#` at the start of the value or inside a token is literal, so
+hex colours (`#fff`), URL fragments (`http://x/#a`) and values like `pass#word`
+are preserved. Inside quotes a `#` is always literal.
+
+| Line | Value |
+|------|-------|
+| `K=abc#123`       | `abc#123` |
+| `K=abc #123`      | `abc` |
+| `K=a b # comment` | `a b` |
+| `K=#fff`          | `#fff` |
 
 ### Variable expansion
 

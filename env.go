@@ -26,9 +26,11 @@ const (
 	// as required, e.g. `env:"KEY,required"`.
 	tagFlagRequired = "required"
 
-	// The defValueSep is the default separator of the items
-	// in the string of value.
-	defValueSep = " "
+	// The defValueSep is the default separator of the items in the string of
+	// value. Comma is the conventional list separator and avoids the data
+	// loss a space default causes for values that contain spaces. Override it
+	// per field with the sep tag, or per call with WithSeparator.
+	defValueSep = ","
 
 	// The defValueIgnored is the value of the tagNameKey field that
 	// should be ignored during processing.

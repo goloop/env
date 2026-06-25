@@ -45,6 +45,18 @@ specification. Several long-standing bugs are fixed. See the
 - Parsing is now spec-compliant: empty values (`KEY=`), trimmed unquoted
   values, single quotes and backticks are literal (no expansion), and escape
   sequences (`\n`, `\t`, `\r`, `\\`, `\"`) are interpreted in double quotes.
+- Decoding follows `encoding/json` presence rules: an absent key leaves the
+  field untouched (so in-code defaults survive), a present but empty value
+  (`KEY=`) sets the zero value, and a slice is replaced rather than appended to.
+- The default list separator is now a comma (was a space), which avoids data
+  loss for values that contain spaces. Override it with the `sep` tag or
+  `WithSeparator`.
+- `bool` fields accept `yes`/`no` and `on`/`off` (case-insensitive) in addition
+  to the `strconv.ParseBool` literals; the previous "float greater than 0.7"
+  heuristic is removed.
+- A nil pointer field is optional: it decodes as nil when its key is absent and
+  is omitted on encode, so optional values round-trip.
+- Conversion errors now include the offending key (e.g. `PORT: ...`).
 - `go.mod` requires Go 1.24; the package has no third-party dependencies.
 
 ### Removed
@@ -68,6 +80,14 @@ specification. Several long-standing bugs are fixed. See the
   reader loop are gone with the sequential parser.
 - Quoted values are parsed in a single escape-aware pass; the previous
   `crypto/rand` marker (whose error was ignored) is removed.
+- The struct mapper no longer panics on nil pointer fields, a nil object passed
+  to `Marshal`, decoding into a nil scalar pointer, or unexported fields
+  (unexported fields are skipped, like `encoding/json`).
+- An unquoted `#` starts an inline comment only when preceded by whitespace, so
+  values such as `pass#word`, `#fff` and URL fragments are no longer silently
+  truncated.
+- `[]*T` and `[N]*T` (slices/arrays of pointers) now decode, with an empty
+  element becoming a nil element.
 
 ### Migration from v1
 

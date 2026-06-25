@@ -193,24 +193,34 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		return nil
 	}
 
+	// keyErr wraps a leaf conversion error with the key for context. Errors
+	// from recursive decodeStruct calls are already keyed, so they pass
+	// through unwrapped.
+	keyErr := func(err error) error {
+		if err == nil {
+			return nil
+		}
+		return fmt.Errorf("%s: %w", tg.key, err)
+	}
+
 	switch item.Kind() {
 	case reflect.Array:
 		max := item.Type().Len()
 		seq := splitN(tg.value, tg.sep, -1)
 		if len(seq) > max {
-			return fmt.Errorf("%d overflows the [%d]array", len(seq), max)
+			return fmt.Errorf("%s: %d overflows the [%d]array", tg.key, len(seq), max)
 		}
 
 		// Replace: clear the array, then fill the parsed elements.
 		item.Set(reflect.Zero(item.Type()))
 		if err := setSequence(item, seq, tg.layout); err != nil {
-			return err
+			return keyErr(err)
 		}
 	case reflect.Slice:
 		seq := splitN(tg.value, tg.sep, -1)
 		tmp := reflect.MakeSlice(item.Type(), len(seq), len(seq))
 		if err := setSequence(&tmp, seq, tg.layout); err != nil {
-			return err
+			return keyErr(err)
 		}
 
 		// Replace the slice (like encoding/json), not append to it.
@@ -229,7 +239,7 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 				item.Set(reflect.New(elemType))
 			}
 			if err := setValue(item.Elem(), tg.value, tg.layout); err != nil {
-				return err
+				return keyErr(err)
 			}
 			break
 		}
@@ -250,7 +260,7 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 			item.Type() == reflect.TypeOf(time.Time{}) {
 			// A leaf struct type handled by setValue.
 			if err := setValue(*item, tg.value, tg.layout); err != nil {
-				return err
+				return keyErr(err)
 			}
 			break
 		}
@@ -263,7 +273,7 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 	default:
 		// Try to set correct value.
 		if err := setValue(*item, tg.value, tg.layout); err != nil {
-			return err
+			return keyErr(err)
 		}
 	}
 
@@ -534,19 +544,19 @@ func strToBool(v string) (bool, error) {
 		return false, nil
 	}
 
-	// Try to convert string to bool.
-	// It accepts 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
-	r, err := strconv.ParseBool(v)
-	if err == nil {
+	// Try the standard literals first:
+	// 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
+	if r, err := strconv.ParseBool(v); err == nil {
 		return r, nil
 	}
 
-	// If strconv.ParseBool() fails, try to parse as a float and check if the
-	// absolute value is greater than 0.7.
-	f, err := strconv.ParseFloat(v, 64)
-	if err != nil {
-		return false, fmt.Errorf("'%s' cannot be converted to a boolean", v)
+	// Accept the common config synonyms (case-insensitive).
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "yes", "on":
+		return true, nil
+	case "no", "off":
+		return false, nil
 	}
 
-	return math.Abs(f) > 0.7, nil
+	return false, fmt.Errorf("%q cannot be converted to a boolean", v)
 }

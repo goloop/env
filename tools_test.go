@@ -183,7 +183,7 @@ func TestReadParseStoreIgnoreWorngEntry(t *testing.T) {
 		"KEY_0": "value_0",
 		"KEY_1": "value_1",
 		"KEY_4": "value_4",
-		"KEY_5": "value",
+		"KEY_5": "value 5", // inline comment stripped, "5" preserved
 		"KEY_6": "777",
 		"KEY_7": "${KEY_1}",
 	}
