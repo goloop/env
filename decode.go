@@ -23,6 +23,20 @@ func hasKeyPrefix(source map[string]string, prefix string) bool {
 	return false
 }
 
+// The isNestedStruct reports whether t is a struct (or pointer to one) that is
+// decoded recursively, as opposed to a leaf type (url.URL, time.Time) or a
+// scalar. Nested structs are populated by their sub-keys, so the "absent key"
+// rule does not apply to them.
+func isNestedStruct(t reflect.Type) bool {
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	return t.Kind() == reflect.Struct &&
+		t != reflect.TypeOf(url.URL{}) &&
+		t != reflect.TypeOf(time.Time{})
+}
+
 // Unmarshaler is the interface implemented by types that can unmarshal
 // themselves from a set of environment values. The data map holds the
 // already-resolved (expanded) key/value pairs of the source.
@@ -171,6 +185,14 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, s settings) error {
 	child := settings{prefix: tg.key + "_", separator: s.separator, timeLayout: s.timeLayout}
 
+	// Absent key with no default: leave the field untouched, like
+	// encoding/json (a present but empty value still clears the field).
+	// Nested structs are excluded - they are populated by their sub-keys
+	// regardless of their own key.
+	if !tg.present && tg.value == "" && !isNestedStruct(item.Type()) {
+		return nil
+	}
+
 	switch item.Kind() {
 	case reflect.Array:
 		max := item.Type().Len()
@@ -179,6 +201,8 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 			return fmt.Errorf("%d overflows the [%d]array", len(seq), max)
 		}
 
+		// Replace: clear the array, then fill the parsed elements.
+		item.Set(reflect.Zero(item.Type()))
 		if err := setSequence(item, seq, tg.layout); err != nil {
 			return err
 		}
@@ -189,22 +213,19 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 			return err
 		}
 
-		item.Set(reflect.AppendSlice(*item, tmp))
+		// Replace the slice (like encoding/json), not append to it.
+		item.Set(tmp)
 	case reflect.Ptr:
-		// A nil pointer means "absent value" and is allocated only when there
-		// is something to assign; otherwise the optional pointer stays nil.
+		// A nil pointer is "absent". The absent case is already handled by the
+		// guard above (leaf) or below (nested struct), so here we only allocate
+		// when there is something to assign.
 		elemType := item.Type().Elem()
 		isLeaf := elemType.Kind() != reflect.Struct ||
 			elemType == reflect.TypeOf(url.URL{}) ||
 			elemType == reflect.TypeOf(time.Time{})
 
 		if isLeaf {
-			// Scalar, url.URL or time.Time: allocate only when the key was
-			// present or a default is set.
 			if item.IsNil() {
-				if !tg.present && tg.value == "" {
-					break
-				}
 				item.Set(reflect.New(elemType))
 			}
 			if err := setValue(item.Elem(), tg.value, tg.layout); err != nil {
@@ -234,14 +255,11 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 			break
 		}
 
-		// If a structure of the another's types (not a url.URL).
-		// Perform recursive analysis of nested structure fields.
-		tmp := reflect.New(item.Type()).Interface()
-		if err := decodeStruct(source, tmp, child); err != nil {
+		// A nested struct: decode in place so fields absent from the source
+		// keep their existing (default) values.
+		if err := decodeStruct(source, item.Addr().Interface(), child); err != nil {
 			return err
 		}
-
-		item.Set(reflect.ValueOf(tmp).Elem())
 	default:
 		// Try to set correct value.
 		if err := setValue(*item, tg.value, tg.layout); err != nil {
@@ -320,6 +338,19 @@ func setValue(item reflect.Value, value, layout string) error {
 		}
 		item.Set(reflect.ValueOf(u))
 		return nil
+	}
+
+	// Any other pointer (e.g. *int, *string): an empty value leaves it nil,
+	// otherwise allocate and set the pointed-to value. This makes pointer
+	// elements of slices/arrays ([]*int, [N]*string, ...) work.
+	if kind == reflect.Ptr {
+		if value == "" {
+			return nil
+		}
+		if item.IsNil() {
+			item.Set(reflect.New(item.Type().Elem()))
+		}
+		return setValue(item.Elem(), value, layout)
 	}
 
 	// The url.URL struct only.

@@ -154,6 +154,25 @@ one important way: `Unmarshal` reads the **process environment** (so you must
 `UnmarshalFile` reads the **file directly** and leaves the environment
 untouched.
 
+### Defaults and absent keys
+
+Decoding follows the same presence rules as `encoding/json`:
+
+- A key **present** in the source sets the field — even when the value is empty
+  (`KEY=` sets the zero value and clears a slice or array).
+- A key **absent** from the source leaves the field **untouched**, so an in-code
+  default survives:
+
+  ```go
+  cfg := Config{Port: 8080}
+  env.Unmarshal(&cfg) // PORT not set -> cfg.Port stays 8080
+  ```
+
+- A `def` tag supplies the value used when the key is absent.
+- A slice is **replaced**, not appended to, so decoding is idempotent and
+  overrides any in-code default. A nested struct is decoded in place, so its
+  sub-fields whose keys are absent keep their values.
+
 ## Encoding a struct
 
 ```go
