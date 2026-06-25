@@ -20,6 +20,14 @@ func WithSeparator(sep string) Option {
 	return func(s *settings) { s.separator = sep }
 }
 
+// WithTimeLayout sets the default layout for time.Time fields. It accepts a Go
+// reference-time layout or the name of a standard time constant (e.g.
+// "DateOnly", "RFC1123"). A per-field layout tag still takes precedence; the
+// built-in default is RFC3339.
+func WithTimeLayout(layout string) Option {
+	return func(s *settings) { s.timeLayout = layout }
+}
+
 // newSettings builds the resolved settings for the public API from the given
 // options, applying defaults and normalizing the prefix (appending "_" when
 // it is non-empty and does not already end with it).

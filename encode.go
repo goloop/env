@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Marshaler is the interface implemented by types that can marshal themselves
@@ -88,10 +89,13 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 		field := rt.Field(i)
 
 		// Get parameters from tags.
-		// The name of the key.
-		key := strings.TrimSpace(field.Tag.Get(tagNameKey))
-		if key == "" {
-			key = field.Name
+		// The name of the key and the inline flags.
+		name, _ := parseEnvTag(field.Tag.Get(tagNameKey))
+		if name == defValueIgnored {
+			continue // the field is explicitly ignored: env:"-"
+		}
+		if name == "" {
+			name = field.Name
 		}
 
 		// Separator value for slices/arrays.
@@ -100,11 +104,18 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 			sep = s.separator
 		}
 
+		// Layout for time.Time fields (tag overrides the call-level default).
+		layout := field.Tag.Get(tagNameLayout)
+		if layout == "" {
+			layout = s.timeLayout
+		}
+
 		// Create tag group.
 		tg := &tagGroup{
-			key:   key,
-			value: field.Tag.Get(tagNameValue),
-			sep:   sep,
+			key:    name,
+			value:  field.Tag.Get(tagNameValue),
+			sep:    sep,
+			layout: resolveLayout(layout),
 		}
 
 		if !tg.isValid() {
@@ -123,21 +134,29 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 
 		switch item.Kind() {
 		case reflect.Array, reflect.Slice:
-			value, err := getSequence(&item, tg.sep)
+			value, err := getSequence(&item, tg.sep, tg.layout)
 			if err != nil {
 				return nil, err
 			}
 			tg.value = value
 		case reflect.Struct:
-			// Support for url.URL struct.
+			// Support for url.URL and time.Time structs.
 			if u, ok := item.Interface().(url.URL); ok {
 				tg.value = u.String()
+				break // break switch
+			}
+			if tm, ok := item.Interface().(time.Time); ok {
+				tg.value = tm.Format(tg.layout)
 				break // break switch
 			}
 
 			// Another struct.
 			// Recursive analysis of the nested structure.
-			child := settings{prefix: s.prefix + tg.key + "_", separator: s.separator}
+			child := settings{
+				prefix:     s.prefix + tg.key + "_",
+				separator:  s.separator,
+				timeLayout: s.timeLayout,
+			}
 			nested, err := encodeStruct(item.Interface(), child)
 			if err != nil {
 				return nil, err
@@ -146,7 +165,7 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 			result = append(result, nested...)
 			continue // nested struct contributes its own pairs
 		default:
-			value, err := toStr(item)
+			value, err := toStr(item, tg.layout)
 			if err != nil {
 				return nil, err
 			}
@@ -177,7 +196,7 @@ func mapToPairs(m map[string]string) []pair {
 }
 
 // The getSequence get sequence as string.
-func getSequence(item *reflect.Value, sep string) (string, error) {
+func getSequence(item *reflect.Value, sep, layout string) (string, error) {
 	var (
 		kind reflect.Kind
 		max  int
@@ -207,7 +226,7 @@ func getSequence(item *reflect.Value, sep string) (string, error) {
 				elem = item.Index(i).Elem()
 			}
 
-			v, err := toStr(elem)
+			v, err := toStr(elem, layout)
 			if err != nil {
 				return "", err
 			}
@@ -219,7 +238,7 @@ func getSequence(item *reflect.Value, sep string) (string, error) {
 		}
 	} else {
 		for i := 0; i < max; i++ {
-			v, err := toStr(item.Index(i))
+			v, err := toStr(item.Index(i), layout)
 			if err != nil {
 				return "", err
 			}
@@ -235,7 +254,16 @@ func getSequence(item *reflect.Value, sep string) (string, error) {
 }
 
 // The toStr converts any item to string.
-func toStr(item reflect.Value) (string, error) {
+func toStr(item reflect.Value, layout string) (string, error) {
+	// time.Duration and time.Time are formatted by type, before the generic
+	// kind handling (Duration's kind is int64, Time's kind is struct).
+	switch item.Type() {
+	case reflect.TypeOf(time.Duration(0)):
+		return time.Duration(item.Int()).String(), nil
+	case reflect.TypeOf(time.Time{}):
+		return item.Interface().(time.Time).Format(layout), nil
+	}
+
 	switch item.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16,
 		reflect.Int32, reflect.Int64:

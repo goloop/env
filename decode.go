@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
-	"strings"
+	"time"
 )
 
 // Unmarshaler is the interface implemented by types that can unmarshal
@@ -84,10 +84,13 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 		field := t.Elem().Field(i)
 
 		// Get parameters from tags.
-		// The name of the key.
-		key := strings.TrimSpace(field.Tag.Get(tagNameKey))
-		if key == "" {
-			key = field.Name
+		// The name of the key and the inline flags (e.g. required).
+		name, required := parseEnvTag(field.Tag.Get(tagNameKey))
+		if name == defValueIgnored {
+			continue // the field is explicitly ignored: env:"-"
+		}
+		if name == "" {
+			name = field.Name
 		}
 
 		// Separator value for slices/arrays.
@@ -96,11 +99,20 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 			sep = s.separator
 		}
 
+		// Layout for time.Time fields (tag overrides the call-level default).
+		layout := field.Tag.Get(tagNameLayout)
+		if layout == "" {
+			layout = s.timeLayout
+		}
+
 		// Create tag group.
+		def := field.Tag.Get(tagNameValue)
 		tg := &tagGroup{
-			key:   s.prefix + key,
-			value: field.Tag.Get(tagNameValue),
-			sep:   sep,
+			key:      s.prefix + name,
+			value:    def,
+			sep:      sep,
+			layout:   resolveLayout(layout),
+			required: required,
 		}
 
 		if !tg.isValid() {
@@ -112,8 +124,15 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 		}
 
 		// If the key exists - take its value from the source.
-		if value, ok := source[tg.key]; ok {
+		value, ok := source[tg.key]
+		if ok {
 			tg.value = value
+		}
+
+		// A required field must be present in the source unless a default
+		// is provided.
+		if tg.required && !ok && def == "" {
+			return fmt.Errorf("%w: %s", ErrRequired, tg.key)
 		}
 
 		// Set value to field.
@@ -129,6 +148,8 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 // The setFieldValue sets value to field from the tag arguments. The source
 // and s are threaded through for the recursive decoding of nested structs.
 func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, s settings) error {
+	child := settings{prefix: tg.key + "_", separator: s.separator, timeLayout: s.timeLayout}
+
 	switch item.Kind() {
 	case reflect.Array:
 		max := item.Type().Len()
@@ -137,13 +158,13 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 			return fmt.Errorf("%d overflows the [%d]array", len(seq), max)
 		}
 
-		if err := setSequence(item, seq); err != nil {
+		if err := setSequence(item, seq, tg.layout); err != nil {
 			return err
 		}
 	case reflect.Slice:
 		seq := splitN(tg.value, tg.sep, -1)
 		tmp := reflect.MakeSlice(item.Type(), len(seq), len(seq))
-		if err := setSequence(&tmp, seq); err != nil {
+		if err := setSequence(&tmp, seq, tg.layout); err != nil {
 			return err
 		}
 
@@ -152,13 +173,14 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		if item.Type().Elem().Kind() != reflect.Struct {
 			// If the pointer of a structure.
 			tmp := reflect.Indirect(*item)
-			if err := setValue(tmp, tg.value); err != nil {
+			if err := setValue(tmp, tg.value, tg.layout); err != nil {
 				return err
 			}
 			break
-		} else if item.Type() == reflect.TypeOf((*url.URL)(nil)) {
-			// If a pointer of a url.URL structure.
-			if err := setValue(*item, tg.value); err != nil {
+		} else if item.Type() == reflect.TypeOf((*url.URL)(nil)) ||
+			item.Type() == reflect.TypeOf((*time.Time)(nil)) {
+			// A pointer to a leaf type handled by setValue.
+			if err := setValue(*item, tg.value, tg.layout); err != nil {
 				return err
 			}
 			break
@@ -167,16 +189,16 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		// If a pointer to a structure of the another's types (not a *url.URL).
 		// Perform recursive analysis of nested structure fields.
 		tmp := reflect.New(item.Type().Elem()).Interface()
-		child := settings{prefix: tg.key + "_", separator: s.separator}
 		if err := decodeStruct(source, tmp, child); err != nil {
 			return err
 		}
 
 		item.Set(reflect.ValueOf(tmp))
 	case reflect.Struct:
-		if item.Type() == reflect.TypeOf(url.URL{}) {
-			// If a url.URL structure.
-			if err := setValue(*item, tg.value); err != nil {
+		if item.Type() == reflect.TypeOf(url.URL{}) ||
+			item.Type() == reflect.TypeOf(time.Time{}) {
+			// A leaf struct type handled by setValue.
+			if err := setValue(*item, tg.value, tg.layout); err != nil {
 				return err
 			}
 			break
@@ -185,7 +207,6 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		// If a structure of the another's types (not a url.URL).
 		// Perform recursive analysis of nested structure fields.
 		tmp := reflect.New(item.Type()).Interface()
-		child := settings{prefix: tg.key + "_", separator: s.separator}
 		if err := decodeStruct(source, tmp, child); err != nil {
 			return err
 		}
@@ -193,7 +214,7 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		item.Set(reflect.ValueOf(tmp).Elem())
 	default:
 		// Try to set correct value.
-		if err := setValue(*item, tg.value); err != nil {
+		if err := setValue(*item, tg.value, tg.layout); err != nil {
 			return err
 		}
 	}
@@ -202,7 +223,7 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 }
 
 // The setSequence sets slice into item, if item is slice or array.
-func setSequence(item *reflect.Value, seq []string) error {
+func setSequence(item *reflect.Value, seq []string, layout string) error {
 	// Ignore empty sequences.
 	if len(seq) == 0 || item.Len() == 0 {
 		return nil
@@ -214,7 +235,7 @@ func setSequence(item *reflect.Value, seq []string) error {
 		if !elem.CanSet() {
 			return fmt.Errorf("cannot set value %s at index %d", value, i)
 		}
-		if err := setValue(elem, value); err != nil {
+		if err := setValue(elem, value, layout); err != nil {
 			return err
 		}
 	}
@@ -223,7 +244,42 @@ func setSequence(item *reflect.Value, seq []string) error {
 }
 
 // The setValue sets value into item (field of the struct).
-func setValue(item reflect.Value, value string) error {
+func setValue(item reflect.Value, value, layout string) error {
+	// time.Duration (an int64) and time.Time (a struct) are parsed by type,
+	// before the generic kind handling. An empty value keeps the zero value.
+	switch item.Type() {
+	case reflect.TypeOf(time.Duration(0)):
+		if value == "" {
+			return nil
+		}
+		d, err := time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+		item.SetInt(int64(d))
+		return nil
+	case reflect.TypeOf(time.Time{}):
+		if value == "" {
+			return nil
+		}
+		tm, err := time.Parse(layout, value)
+		if err != nil {
+			return err
+		}
+		item.Set(reflect.ValueOf(tm))
+		return nil
+	case reflect.TypeOf((*time.Time)(nil)):
+		if value == "" {
+			return nil
+		}
+		tm, err := time.Parse(layout, value)
+		if err != nil {
+			return err
+		}
+		item.Set(reflect.ValueOf(&tm))
+		return nil
+	}
+
 	kind := item.Kind()
 
 	// The *url.URL pointer only.

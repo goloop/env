@@ -18,6 +18,14 @@ const (
 	// of the items in the string of value.
 	tagNameSep = "sep"
 
+	// The tagNameLayout the identifier of the tag that sets the layout
+	// for time.Time fields.
+	tagNameLayout = "layout"
+
+	// The tagFlagRequired is the inline env-tag flag that marks a field
+	// as required, e.g. `env:"KEY,required"`.
+	tagFlagRequired = "required"
+
 	// The defValueSep is the default separator of the items
 	// in the string of value.
 	defValueSep = " "

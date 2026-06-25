@@ -21,4 +21,8 @@ var (
 	// ErrInvalidObject is returned by Marshal when the object is not a
 	// struct or a pointer to a struct.
 	ErrInvalidObject = errors.New("env: object must be a struct or a pointer to a struct")
+
+	// ErrRequired is returned when a field tagged as required has no value
+	// in the source and no default.
+	ErrRequired = errors.New("env: required key is not set")
 )
