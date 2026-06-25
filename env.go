@@ -3,6 +3,7 @@ package env
 import (
 	"bytes"
 	"io"
+	"iter"
 	"os"
 	"regexp"
 )
@@ -97,6 +98,16 @@ func loadFiles(filenames []string, expand, update bool) error {
 	return nil
 }
 
+// MustLoad is like Load but panics if loading fails. It is convenient in init
+// or main, where a missing or invalid configuration should stop the program.
+//
+//	func init() { env.MustLoad(".env") }
+func MustLoad(filenames ...string) {
+	if err := Load(filenames...); err != nil {
+		panic(err)
+	}
+}
+
 // LoadReader reads .env data from r into the process environment, keeping
 // existing keys and expanding ${VAR}/$VAR. It is handy for embedded files
 // (embed.FS), network sources or strings.
@@ -169,16 +180,43 @@ func ParseRaw(r io.Reader) (map[string]string, error) {
 	return parse(r, false)
 }
 
+// All returns an iterator over the key/value pairs parsed from the given .env
+// files (default ".env"), expanding ${VAR}/$VAR, without touching the process
+// environment. It is a convenience over Read for ranging without building a
+// map yourself:
+//
+//	for key, value := range env.All(".env") {
+//	    fmt.Println(key, value)
+//	}
+//
+// Read or parse errors are ignored (the iterator yields nothing); use Read if
+// you need to handle them.
+func All(filenames ...string) iter.Seq2[string, string] {
+	return func(yield func(string, string) bool) {
+		m, err := readFiles(filenames, true)
+		if err != nil {
+			return
+		}
+		for key, value := range m {
+			if !yield(key, value) {
+				return
+			}
+		}
+	}
+}
+
 // MarshalFile writes the struct obj into the file as KEY=value lines without
 // changing the process environment.
 //
-// Use options to control the output, e.g. WithPrefix or WithSeparator. See
-// Marshal for the list of supported field types and tags.
+// Use options to control the output, e.g. WithPrefix, WithSeparator or
+// WithFileMode. See Marshal for the list of supported field types and tags.
 //
 //	var config = Config{Host: "localhost", Port: 8080}
 //	env.MarshalFile("/tmp/.env", config)
 func MarshalFile(filename string, obj any, opts ...Option) error {
-	pairs, err := encodeStruct(obj, newSettings(opts...))
+	st := newSettings(opts...)
+
+	pairs, err := encodeStruct(obj, st)
 	if err != nil {
 		return err
 	}
@@ -191,7 +229,7 @@ func MarshalFile(filename string, obj any, opts ...Option) error {
 		buf.WriteByte('\n')
 	}
 
-	return os.WriteFile(filename, buf.Bytes(), 0o644)
+	return os.WriteFile(filename, buf.Bytes(), st.fileMode)
 }
 
 // MarshalMap converts the struct obj into a map of key/value pairs without

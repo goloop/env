@@ -71,6 +71,14 @@ if err := env.Overload(".env", ".env.local"); err != nil {
 `Raw` variants skip `${VAR}`/`$VAR` expansion and store values verbatim. Use
 them when your values legitimately contain `$` and must not be interpolated.
 
+`MustLoad(filenames ...string)` is like `Load` but panics on error — convenient
+in `init` or `main` where a missing or invalid configuration should stop the
+program:
+
+```go
+func init() { env.MustLoad(".env") }
+```
+
 ### LoadReader
 
 ```go
@@ -111,6 +119,16 @@ fmt.Println(m["HOST"])
 
 // Parse from a string.
 m, _ = env.Parse(strings.NewReader("HOST=localhost\nPORT=8080\n"))
+```
+
+`All(filenames ...string) iter.Seq2[string, string]` is a convenience iterator
+over a file's pairs, so you can range without building a map yourself. Read or
+parse errors are ignored (it yields nothing); use `Read` if you need them.
+
+```go
+for key, value := range env.All(".env") {
+	fmt.Println(key, value)
+}
 ```
 
 Expansion in `Read`/`Parse` resolves `${VAR}` against earlier keys in the same
@@ -258,6 +276,15 @@ is RFC3339.
 
 ```go
 env.Unmarshal(&c, env.WithTimeLayout("DateOnly"))
+```
+
+### WithFileMode
+
+Sets the permission bits `MarshalFile` uses when creating the file. The default
+is `0o644`; use `0o600` for files that hold secrets.
+
+```go
+env.MarshalFile(".env", cfg, env.WithFileMode(0o600))
 ```
 
 ## Struct tags

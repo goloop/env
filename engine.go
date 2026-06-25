@@ -16,6 +16,7 @@ type settings struct {
 	prefix     string
 	separator  string
 	timeLayout string
+	fileMode   os.FileMode
 }
 
 // The resolveLayout maps a layout name to a Go reference-time layout. It

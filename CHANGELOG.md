@@ -37,6 +37,9 @@ specification. Several long-standing bugs are fixed. See the
   `encoding.TextUnmarshaler`, so types such as `net.IP`, `netip.Addr`,
   `uuid.UUID`, `slog.Level` and your own enums work automatically (including
   slices, arrays and pointers of them).
+- `MustLoad` (panics on error, for `init`/`main`), `All` (an `iter.Seq2`
+  iterator over a file's pairs) and the `WithFileMode` option for `MarshalFile`
+  (default `0o644`; use `0o600` for secrets).
 - Full reference documentation: `DOC.md` (English) and `DOC.UK.md` (Ukrainian),
   plus runnable `Example` functions.
 

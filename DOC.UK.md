@@ -72,6 +72,13 @@ if err := env.Overload(".env", ".env.local"); err != nil {
 дослівно. Використовуй їх, коли значення законно містять `$` і не мають
 інтерполюватися.
 
+`MustLoad(filenames ...string)` — як `Load`, але панікує при помилці; зручно в
+`init`/`main`, де відсутній або битий конфіг має зупинити програму:
+
+```go
+func init() { env.MustLoad(".env") }
+```
+
 ### LoadReader
 
 ```go
@@ -112,6 +119,16 @@ fmt.Println(m["HOST"])
 
 // Парс із рядка.
 m, _ = env.Parse(strings.NewReader("HOST=localhost\nPORT=8080\n"))
+```
+
+`All(filenames ...string) iter.Seq2[string, string]` — зручний ітератор пар
+файлу, щоб перебирати без побудови map. Помилки читання/парсингу ігноруються
+(нічого не видає); якщо їх треба обробити — бери `Read`.
+
+```go
+for key, value := range env.All(".env") {
+	fmt.Println(key, value)
+}
 ```
 
 Розгортання в `Read`/`Parse` резолвить `${VAR}` проти раніших ключів того ж
@@ -257,6 +274,15 @@ RFC3339.
 
 ```go
 env.Unmarshal(&c, env.WithTimeLayout("DateOnly"))
+```
+
+### WithFileMode
+
+Задає права, з якими `MarshalFile` створює файл. Дефолт — `0o644`; для файлів
+із секретами використовуй `0o600`.
+
+```go
+env.MarshalFile(".env", cfg, env.WithFileMode(0o600))
 ```
 
 ## Теги структур

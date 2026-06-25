@@ -1,6 +1,9 @@
 package env
 
-import "strings"
+import (
+	"os"
+	"strings"
+)
 
 // Option configures a marshal/unmarshal call. Options set call-level defaults
 // that a per-field tag can override (a field's sep tag overrides WithSeparator).
@@ -28,11 +31,17 @@ func WithTimeLayout(layout string) Option {
 	return func(s *settings) { s.timeLayout = layout }
 }
 
+// WithFileMode sets the permission bits used by MarshalFile when creating the
+// file. The built-in default is 0o644; use 0o600 for files that hold secrets.
+func WithFileMode(mode os.FileMode) Option {
+	return func(s *settings) { s.fileMode = mode }
+}
+
 // newSettings builds the resolved settings for the public API from the given
 // options, applying defaults and normalizing the prefix (appending "_" when
 // it is non-empty and does not already end with it).
 func newSettings(opts ...Option) settings {
-	s := settings{separator: defValueSep}
+	s := settings{separator: defValueSep, fileMode: 0o644}
 	for _, opt := range opts {
 		opt(&s)
 	}

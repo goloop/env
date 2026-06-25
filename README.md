@@ -170,6 +170,8 @@ value.
 | `OverloadRaw(files...)`  | no  | yes |
 | `LoadReader(r)`          | yes | no  |
 
+`MustLoad(files...)` is like `Load` but panics on error (handy in `init`/`main`).
+
 **Files / readers → map** (no side effects):
 
 | Function | Expands `${VAR}` |
@@ -178,6 +180,7 @@ value.
 | `ReadRaw(files...) (map, error)` | no |
 | `Parse(r) (map, error)`        | yes |
 | `ParseRaw(r) (map, error)`     | no  |
+| `All(files...) iter.Seq2`      | yes (iterator) |
 
 **Struct mapping:**
 
@@ -187,7 +190,8 @@ value.
 | `UnmarshalMap(m, v, opts...)`  | `MarshalMap(v, opts...)` → map |
 | `UnmarshalFile(name, v, opts...)` | `MarshalFile(name, v, opts...)` → file |
 
-**Options:** `WithPrefix(p)`, `WithSeparator(sep)`, `WithTimeLayout(layout)`.
+**Options:** `WithPrefix(p)`, `WithSeparator(sep)`, `WithTimeLayout(layout)`,
+`WithFileMode(mode)` (for `MarshalFile`).
 
 **Environment helpers** (thin wrappers over `os`): `Get`, `Set`, `Unset`,
 `Clear`, `Environ`, `Expand`, `Lookup`, `Exists`.
