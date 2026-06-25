@@ -225,6 +225,7 @@ precedence is always: **field tag > option > built-in default**.
 func WithPrefix(prefix string) Option
 func WithSeparator(sep string) Option
 func WithTimeLayout(layout string) Option
+func WithFileMode(mode os.FileMode) Option
 ```
 
 ### WithPrefix

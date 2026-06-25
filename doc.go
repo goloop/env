@@ -57,13 +57,15 @@
 //   - env: the key name; "-" ignores the field; an inline "required" flag
 //     (env:"KEY,required") makes it mandatory.
 //   - def: a default value used when the key is absent.
-//   - sep: the separator for slice/array values (default: a space).
+//   - sep: the separator for slice/array values (default: a comma).
 //   - layout: the layout for time.Time fields (default: RFC3339).
 //
 // # Supported types
 //
 // All sized int/uint, float32/64, string, bool, url.URL, time.Duration,
-// time.Time, nested structs, pointers and slices/arrays of these.
+// time.Time, any type implementing encoding.TextMarshaler/TextUnmarshaler
+// (e.g. net.IP, custom enums), nested structs, pointers and slices/arrays of
+// these.
 //
 // A pointer field is optional: it is decoded as nil when its key is absent and
 // omitted on encode, so optional values round-trip (see DOC.md for details).

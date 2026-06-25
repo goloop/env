@@ -91,7 +91,7 @@ NESTED_LABEL=Test
 NESTED_VALUE=42
 `
 	tmpfile := b.TempDir() + "/.env"
-	if err := os.WriteFile(tmpfile, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(tmpfile, []byte(content), 0o644); err != nil {
 		b.Fatal(err)
 	}
 
@@ -101,8 +101,10 @@ NESTED_VALUE=42
 	}
 }
 
-// Benchmark parallel operations
-func BenchmarkParallelUnmarshal(b *testing.B) {
+// BenchmarkUnmarshalConcurrent checks that Unmarshal stays fast under
+// concurrent callers. The decoder is sequential and has no shared mutable
+// state, so concurrent reads do not contend.
+func BenchmarkUnmarshalConcurrent(b *testing.B) {
 	Set("TEST_HOST", "localhost")
 	Set("TEST_PORT", "8080")
 	Set("TEST_ALLOWED_IPS", "127.0.0.1,192.168.1.1")
@@ -125,7 +127,8 @@ func BenchmarkURLParsing(b *testing.B) {
 	}
 }
 
-// Benchmark type conversion
+// BenchmarkTypeConversion measures decoding a single typed field from a map
+// (no environment snapshot), one sub-benchmark per scalar kind.
 func BenchmarkTypeConversion(b *testing.B) {
 	tests := map[string]string{
 		"INT":    "12345",
@@ -136,22 +139,30 @@ func BenchmarkTypeConversion(b *testing.B) {
 
 	for typ, val := range tests {
 		b.Run(typ, func(b *testing.B) {
-			Set("TEST_"+typ, val)
+			m := map[string]string{"V": val}
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				switch typ {
 				case "INT":
-					var i int
-					unmarshalEnv("TEST_", &i)
+					var c struct {
+						V int `env:"V"`
+					}
+					UnmarshalMap(m, &c)
 				case "FLOAT":
-					var f float64
-					unmarshalEnv("TEST_", &f)
+					var c struct {
+						V float64 `env:"V"`
+					}
+					UnmarshalMap(m, &c)
 				case "BOOL":
-					var bo bool
-					unmarshalEnv("TEST_", &bo)
+					var c struct {
+						V bool `env:"V"`
+					}
+					UnmarshalMap(m, &c)
 				case "STRING":
-					var s string
-					unmarshalEnv("TEST_", &s)
+					var c struct {
+						V string `env:"V"`
+					}
+					UnmarshalMap(m, &c)
 				}
 			}
 		})

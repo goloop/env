@@ -18,7 +18,7 @@ func WithPrefix(prefix string) Option {
 }
 
 // WithSeparator sets the default separator for slice/array values. A per-field
-// sep tag still takes precedence. The built-in default is a single space.
+// sep tag still takes precedence. The built-in default is a comma.
 func WithSeparator(sep string) Option {
 	return func(s *settings) { s.separator = sep }
 }

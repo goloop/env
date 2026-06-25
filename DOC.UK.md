@@ -223,6 +223,7 @@ _ = env.MarshalFile(".env", cfg) // пише рядки KEY=value у .env
 func WithPrefix(prefix string) Option
 func WithSeparator(sep string) Option
 func WithTimeLayout(layout string) Option
+func WithFileMode(mode os.FileMode) Option
 ```
 
 ### WithPrefix

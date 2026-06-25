@@ -271,7 +271,7 @@ func MarshalMap(obj any, opts ...Option) (map[string]string, error) {
 //	fmt.Printf("KEY_1 is %v\n", env.Exists("KEY_1"))
 //	fmt.Printf("KEY_0 and KEY_1 is %v\n\n", env.Exists("KEY_0", "KEY_1"))
 //
-//	if err := env.Update("./cmd/.env"); err != nil {
+//	if err := env.Load(".env"); err != nil {
 //	  log.Fatal(err)
 //	}
 //
@@ -301,8 +301,11 @@ func Exists(keys ...string) bool {
 // WithPrefix to read a namespaced subset (WithPrefix("APP") reads APP_*).
 //
 // Supported field types: all int/uint sizes, float32/64, string, bool,
-// url.URL, nested structs, pointers, and arrays/slices of those. Tags: env
-// (key name, "-" to ignore), def (default value), sep (list separator).
+// url.URL, time.Duration, time.Time, any type implementing
+// encoding.TextUnmarshaler (e.g. net.IP, custom enums), nested structs,
+// pointers, and arrays/slices of those. Tags: env (key name, "-" to ignore,
+// ",required" to require), def (default value), sep (list separator), layout
+// (time format).
 //
 // If obj implements Unmarshaler, its UnmarshalEnv method is called with the
 // resolved key/value map instead of the reflective decoding.
@@ -339,8 +342,10 @@ func UnmarshalFile(filename string, obj any, opts ...Option) error {
 // to control the output.
 //
 // Supported field types: all int/uint sizes, float32/64, string, bool,
-// url.URL, nested structs, pointers, and arrays/slices of those. Tags: env
-// (key name, "-" to ignore), def (default value), sep (list separator).
+// url.URL, time.Duration, time.Time, any type implementing
+// encoding.TextMarshaler (e.g. net.IP, custom enums), nested structs,
+// pointers, and arrays/slices of those. Tags: env (key name, "-" to ignore),
+// def (default value), sep (list separator), layout (time format).
 //
 // If obj implements Marshaler, its MarshalEnv method provides the key/value
 // pairs that are written. To produce the pairs without changing the
