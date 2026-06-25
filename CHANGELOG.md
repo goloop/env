@@ -33,6 +33,10 @@ specification. Several long-standing bugs are fixed. See the
 - Typed sentinel errors: `ErrNilObject`, `ErrNotPointer`, `ErrNotStruct`,
   `ErrEmptyStruct`, `ErrInvalidObject`, `ErrRequired` (testable with
   `errors.Is`); conversion errors are wrapped with `%w`.
+- Field-level support for `encoding.TextMarshaler` and
+  `encoding.TextUnmarshaler`, so types such as `net.IP`, `netip.Addr`,
+  `uuid.UUID`, `slog.Level` and your own enums work automatically (including
+  slices, arrays and pointers of them).
 - Full reference documentation: `DOC.md` (English) and `DOC.UK.md` (Ukrainian),
   plus runnable `Example` functions.
 

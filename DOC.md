@@ -333,6 +333,30 @@ Arrays enforce their length: decoding more elements than the array can hold is
 an error. Decoding an empty value yields an empty slice (and leaves an array at
 its zero values).
 
+### Custom field types
+
+Any field whose type implements `encoding.TextUnmarshaler` (and, for encoding,
+`encoding.TextMarshaler`) is supported automatically — the value is parsed with
+`UnmarshalText` and formatted with `MarshalText`. This covers many standard and
+third-party types (`net.IP`, `netip.Addr`, `uuid.UUID`, `big.Int`,
+`slog.Level`, …) and your own enums, including slices, arrays and pointers of
+them.
+
+```go
+type Config struct {
+	BindIP net.IP   `env:"BIND_IP"`         // "0.0.0.0" -> net.IP
+	Level  Level    `env:"LOG_LEVEL"`       // your enum's UnmarshalText
+	Peers  []net.IP `env:"PEERS" sep:","`   // slices work too
+}
+```
+
+The special-cased `time.Time` keeps its `layout` tag (it is handled before the
+`TextUnmarshaler` path), and `url.URL` is parsed directly.
+
+> Need a type you do not control and that lacks `TextUnmarshaler`? Wrap it in a
+> small named type with an `UnmarshalText` method. (A `WithParser` registration
+> option is planned for a future release.)
+
 ### Optional fields (pointers)
 
 A pointer field models an *optional* value: a nil pointer means "absent". The

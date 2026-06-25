@@ -1,6 +1,7 @@
 package env
 
 import (
+	"encoding"
 	"fmt"
 	"math"
 	"net/url"
@@ -9,6 +10,16 @@ import (
 	"strings"
 	"time"
 )
+
+// textUnmarshalerType is the reflect.Type of encoding.TextUnmarshaler.
+var textUnmarshalerType = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
+
+// The implementsTextUnmarshaler reports whether t (or a pointer to it)
+// implements encoding.TextUnmarshaler.
+func implementsTextUnmarshaler(t reflect.Type) bool {
+	return t.Implements(textUnmarshalerType) ||
+		reflect.PointerTo(t).Implements(textUnmarshalerType)
+}
 
 // The hasKeyPrefix reports whether the source has at least one key starting
 // with the given prefix. It decides whether an optional nested-struct pointer
@@ -30,6 +41,11 @@ func hasKeyPrefix(source map[string]string, prefix string) bool {
 func isNestedStruct(t reflect.Type) bool {
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
+	}
+
+	// A type that implements TextUnmarshaler is a leaf, not a nested struct.
+	if implementsTextUnmarshaler(t) {
+		return false
 	}
 
 	return t.Kind() == reflect.Struct &&
@@ -203,6 +219,14 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		return fmt.Errorf("%s: %w", tg.key, err)
 	}
 
+	// A non-pointer type that implements TextUnmarshaler is a leaf regardless
+	// of its kind (e.g. net.IP is a slice), so handle it before the kind
+	// switch. Pointers flow through the Ptr case, which dereferences to
+	// setValue. time.Time/url.URL keep their special handling inside setValue.
+	if item.Kind() != reflect.Ptr && implementsTextUnmarshaler(item.Type()) {
+		return keyErr(setValue(*item, tg.value, tg.layout))
+	}
+
 	switch item.Kind() {
 	case reflect.Array:
 		max := item.Type().Len()
@@ -232,7 +256,8 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		elemType := item.Type().Elem()
 		isLeaf := elemType.Kind() != reflect.Struct ||
 			elemType == reflect.TypeOf(url.URL{}) ||
-			elemType == reflect.TypeOf(time.Time{})
+			elemType == reflect.TypeOf(time.Time{}) ||
+			implementsTextUnmarshaler(elemType)
 
 		if isLeaf {
 			if item.IsNil() {
@@ -371,6 +396,15 @@ func setValue(item reflect.Value, value, layout string) error {
 		}
 		item.Set(reflect.ValueOf(*u))
 		return nil
+	}
+
+	// Any type implementing TextUnmarshaler (net.IP, uuid.UUID, custom enums,
+	// ...) is parsed via UnmarshalText. An empty value leaves the zero value.
+	// This is checked after the special-cased time/url types above.
+	if value != "" && item.CanAddr() {
+		if u, ok := item.Addr().Interface().(encoding.TextUnmarshaler); ok {
+			return u.UnmarshalText([]byte(value))
+		}
 	}
 
 	switch kind {

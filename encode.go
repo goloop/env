@@ -1,6 +1,7 @@
 package env
 
 import (
+	"encoding"
 	"fmt"
 	"net/url"
 	"reflect"
@@ -9,6 +10,16 @@ import (
 	"strings"
 	"time"
 )
+
+// textMarshalerType is the reflect.Type of encoding.TextMarshaler.
+var textMarshalerType = reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
+
+// The implementsTextMarshaler reports whether t (or a pointer to it)
+// implements encoding.TextMarshaler.
+func implementsTextMarshaler(t reflect.Type) bool {
+	return t.Implements(textMarshalerType) ||
+		reflect.PointerTo(t).Implements(textMarshalerType)
+}
 
 // Marshaler is the interface implemented by types that can marshal themselves
 // into a set of environment values. The returned map holds the key/value pairs;
@@ -145,6 +156,18 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 			item = item.Elem()
 		}
 
+		// A type implementing TextMarshaler is a leaf regardless of its kind
+		// (e.g. net.IP is a slice), so format it via toStr before the kind
+		// switch. time.Time still uses its layout (handled inside toStr).
+		if implementsTextMarshaler(item.Type()) {
+			value, err := toStr(item, tg.layout)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", s.prefix+tg.key, err)
+			}
+			result = append(result, pair{key: s.prefix + tg.key, value: value})
+			continue
+		}
+
 		switch item.Kind() {
 		case reflect.Array, reflect.Slice:
 			value, err := getSequence(&item, tg.sep, tg.layout)
@@ -255,6 +278,17 @@ func toStr(item reflect.Value, layout string) (string, error) {
 		return time.Duration(item.Int()).String(), nil
 	case reflect.TypeOf(time.Time{}):
 		return item.Interface().(time.Time).Format(layout), nil
+	}
+
+	// Any type implementing TextMarshaler (net.IP, uuid.UUID, custom enums,
+	// ...) is formatted via MarshalText. Checked after the special-cased time
+	// types above so time.Time keeps its layout.
+	if m, ok := item.Interface().(encoding.TextMarshaler); ok {
+		b, err := m.MarshalText()
+		if err != nil {
+			return "", err
+		}
+		return string(b), nil
 	}
 
 	switch item.Kind() {
