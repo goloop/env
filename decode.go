@@ -49,8 +49,8 @@ func isNestedStruct(t reflect.Type) bool {
 	}
 
 	return t.Kind() == reflect.Struct &&
-		t != reflect.TypeOf(url.URL{}) &&
-		t != reflect.TypeOf(time.Time{})
+		t != urlType &&
+		t != timeTimeType
 }
 
 // Unmarshaler is the interface implemented by types that can unmarshal
@@ -79,31 +79,6 @@ func validateStruct(obj any) (reflect.Type, reflect.Value, error) {
 	}
 
 	return rt, rv, err
-}
-
-// The unmarshalEnv read variables from the environment
-// and save them into Go-struct.
-//
-// Method supports the following type of the fields: int, int8, int16, int32,
-// int64, uin, uint8, uin16, uint32, in64, float32, float64, string, bool,
-// struct, url.URL and pointers, array or slice from types like (i.e. *int,
-// *uint, ..., []int, ..., []bool, ..., [2]*url.URL, etc.). The fields as
-// a struct or pointer on the struct will be processed recursively.
-//
-// For other type of the fields (i.e chan, map ...) or upon occurrence other
-// conversion problems will be returned an error.
-//
-// The prefix argument filters keys by a certain prefix and used as a marker
-// of the nesting level during the recursive processing of object fields
-// (as prefix for environment variables).
-//
-// The obj is a pointer to an initialized object where need to
-// save variables from the environment.
-func unmarshalEnv(prefix string, obj any) error {
-	return decodeStruct(environMap(), obj, settings{
-		prefix:    prefix,
-		separator: defValueSep,
-	})
 }
 
 // The decodeStruct reads values from the source map into the fields of obj,
@@ -255,8 +230,8 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		// when there is something to assign.
 		elemType := item.Type().Elem()
 		isLeaf := elemType.Kind() != reflect.Struct ||
-			elemType == reflect.TypeOf(url.URL{}) ||
-			elemType == reflect.TypeOf(time.Time{}) ||
+			elemType == urlType ||
+			elemType == timeTimeType ||
 			implementsTextUnmarshaler(elemType)
 
 		if isLeaf {
@@ -281,8 +256,8 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 			return err
 		}
 	case reflect.Struct:
-		if item.Type() == reflect.TypeOf(url.URL{}) ||
-			item.Type() == reflect.TypeOf(time.Time{}) {
+		if item.Type() == urlType ||
+			item.Type() == timeTimeType {
 			// A leaf struct type handled by setValue.
 			if err := setValue(*item, tg.value, tg.layout); err != nil {
 				return keyErr(err)
@@ -331,7 +306,7 @@ func setValue(item reflect.Value, value, layout string) error {
 	// time.Duration (an int64) and time.Time (a struct) are parsed by type,
 	// before the generic kind handling. An empty value keeps the zero value.
 	switch item.Type() {
-	case reflect.TypeOf(time.Duration(0)):
+	case timeDurationType:
 		if value == "" {
 			return nil
 		}
@@ -341,7 +316,7 @@ func setValue(item reflect.Value, value, layout string) error {
 		}
 		item.SetInt(int64(d))
 		return nil
-	case reflect.TypeOf(time.Time{}):
+	case timeTimeType:
 		if value == "" {
 			return nil
 		}
@@ -351,7 +326,7 @@ func setValue(item reflect.Value, value, layout string) error {
 		}
 		item.Set(reflect.ValueOf(tm))
 		return nil
-	case reflect.TypeOf((*time.Time)(nil)):
+	case timeTimePtrType:
 		if value == "" {
 			return nil
 		}
@@ -366,7 +341,7 @@ func setValue(item reflect.Value, value, layout string) error {
 	kind := item.Kind()
 
 	// The *url.URL pointer only.
-	if kind == reflect.Ptr && item.Type() == reflect.TypeOf((*url.URL)(nil)) {
+	if kind == reflect.Ptr && item.Type() == urlPtrType {
 		u, err := url.Parse(value)
 		if err != nil {
 			return err
@@ -389,7 +364,7 @@ func setValue(item reflect.Value, value, layout string) error {
 	}
 
 	// The url.URL struct only.
-	if kind == reflect.Struct && item.Type() == reflect.TypeOf(url.URL{}) {
+	if kind == reflect.Struct && item.Type() == urlType {
 		u, err := url.Parse(value)
 		if err != nil {
 			return err

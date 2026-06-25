@@ -2,103 +2,13 @@ package env
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"reflect"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
-
-// The sts function converts a slice or an array of any type to a string.
-// If the value is not a slice or array, an error message will be returned.
-//
-// The second argument to the function specifies the separator to be
-// inserted between the elements of the sequence in the result string.
-//
-// Examples:
-//
-//	sts([]int{1, 2, 3}, ",")          // "1,2,3"
-//	sts([]string{"1", "2", "3"}, ";") // "1;2;3"
-//
-// Note: This function is not used as an environment function subsystem,
-// it is only used to test package functions.
-func sts(seq any, sep string) (string, error) {
-	// Create a string builder to concatenate strings.
-	var sb strings.Builder
-
-	// Check the type of the input data.
-	kind := reflect.TypeOf(seq).Kind()
-	if kind != reflect.Array && kind != reflect.Slice {
-		return "", errors.New("input is not a slice or array")
-	}
-
-	// Convert the sequence to a string.
-	s := reflect.ValueOf(seq)
-	for i := 0; i < s.Len(); i++ {
-		if i > 0 {
-			sb.WriteString(sep)
-		}
-		fmt.Fprintf(&sb, "%v", s.Index(i))
-	}
-
-	return sb.String(), nil
-}
-
-// The fts function returns data as a string from the struct or pointer
-// on struct by field name. If the name gets the name of the key-like
-// (with '_' separator, such as delimiter used in environment variables),
-// for example KEY_A, it will be converted to a Go-style name - KeyA.
-//
-// If the specified field is missing from the structure,
-// an empty string will be returned.
-//
-// Note: This function is not used as an environment function subsystem,
-// it is only used to test package functions.
-func fts(v any, name, sep string) string {
-	// Check if v is a struct. And if v is a pointer to a structure,
-	// we need to get the structure it refers to.
-	r := reflect.ValueOf(v)
-	if r.Kind() == reflect.Ptr {
-		r = r.Elem()
-	}
-
-	if r.Kind() != reflect.Struct {
-		return ""
-	}
-
-	// Correct the field name to go-style.
-	if strings.Contains(name, "_") {
-		// Split words, capitalize words and join it.
-		name = strings.NewReplacer("_", " ").Replace(name)
-		name = strings.Title(strings.ToLower(name))
-		name = strings.ReplaceAll(name, " ", "")
-	}
-
-	// Check if the struct has a field with the given name.
-	f := reflect.Indirect(r).FieldByName(name)
-	if !f.IsValid() {
-		return ""
-	}
-
-	// Convert the field value to a string.
-	var value string
-	switch f.Kind() {
-	case reflect.Slice, reflect.Array:
-		if sep == "" {
-			value = fmt.Sprintf("%v", f)
-		} else {
-			value = strings.Join(strings.Fields(fmt.Sprint(f)), sep)
-		}
-		value = strings.Trim(value, "[]")
-	default:
-		value = fmt.Sprintf("%v", f)
-	}
-
-	return value
-}
 
 // The isEmpty function returns true if the string from the environment file
 // contains separators or comments only.

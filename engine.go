@@ -1,9 +1,21 @@
 package env
 
 import (
+	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"time"
+)
+
+// Cached reflect.Types for the special-cased field types (avoids recomputing
+// them on every field/element in the hot path).
+var (
+	timeDurationType = reflect.TypeOf(time.Duration(0))
+	timeTimeType     = reflect.TypeOf(time.Time{})
+	timeTimePtrType  = reflect.TypeOf((*time.Time)(nil))
+	urlType          = reflect.TypeOf(url.URL{})
+	urlPtrType       = reflect.TypeOf((*url.URL)(nil))
 )
 
 // The settings holds the resolved options for a marshal/unmarshal call.

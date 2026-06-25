@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -32,28 +32,6 @@ type Marshaler interface {
 type pair struct {
 	key   string
 	value string
-}
-
-// The marshalEnv encodes obj and writes the result into the environment
-// (unless idle is true), returning the produced "KEY=value" lines. It is the
-// internal entry point kept for compatibility with the existing test suite.
-func marshalEnv(prefix string, obj any, idle bool) ([]string, error) {
-	pairs, err := encodeStruct(obj, settings{prefix: prefix, separator: defValueSep})
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]string, 0, len(pairs))
-	for _, p := range pairs {
-		if !idle {
-			if err := Set(p.key, p.value); err != nil {
-				return result, err
-			}
-		}
-		result = append(result, p.key+"="+p.value)
-	}
-
-	return result, nil
 }
 
 // The encodeStruct converts the fields of obj into an ordered list of key/value
@@ -221,7 +199,7 @@ func mapToPairs(m map[string]string) []pair {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	pairs := make([]pair, 0, len(m))
 	for _, k := range keys {
@@ -274,9 +252,9 @@ func toStr(item reflect.Value, layout string) (string, error) {
 	// time.Duration and time.Time are formatted by type, before the generic
 	// kind handling (Duration's kind is int64, Time's kind is struct).
 	switch item.Type() {
-	case reflect.TypeOf(time.Duration(0)):
+	case timeDurationType:
 		return time.Duration(item.Int()).String(), nil
-	case reflect.TypeOf(time.Time{}):
+	case timeTimeType:
 		return item.Interface().(time.Time).Format(layout), nil
 	}
 
