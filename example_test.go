@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/goloop/env"
+	"github.com/goloop/env/v2"
 )
 
 // Unmarshal reads values from the process environment into a struct. Field

@@ -1,6 +1,6 @@
 # env — довідник
 
-Повний довідник пакета `github.com/goloop/env`. Стислий огляд — у
+Повний довідник пакета `github.com/goloop/env/v2`. Стислий огляд — у
 [README](README.md). English version: [DOC.md](DOC.md).
 
 ## Зміст

@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/goloop/env"
+	"github.com/goloop/env/v2"
 )
 
 // level is a custom enum that implements encoding.TextMarshaler and

@@ -1,4 +1,4 @@
-[![Go Report Card](https://goreportcard.com/badge/github.com/goloop/env)](https://goreportcard.com/report/github.com/goloop/env) [![License](https://img.shields.io/badge/godoc-A+-brightgreen)](https://godoc.org/github.com/goloop/env) [![License](https://img.shields.io/badge/license-MIT-brightgreen)](https://github.com/goloop/env/blob/master/LICENSE) [![Stay with Ukraine](https://img.shields.io/static/v1?label=Stay%20with&message=Ukraine%20♥&color=ffD700&labelColor=0057B8&style=flat)](https://u24.gov.ua/)
+[![Go Report Card](https://goreportcard.com/badge/github.com/goloop/env/v2)](https://goreportcard.com/report/github.com/goloop/env/v2) [![License](https://img.shields.io/badge/godoc-A+-brightgreen)](https://godoc.org/github.com/goloop/env/v2) [![License](https://img.shields.io/badge/license-MIT-brightgreen)](https://github.com/goloop/env/blob/master/LICENSE) [![Stay with Ukraine](https://img.shields.io/static/v1?label=Stay%20with&message=Ukraine%20♥&color=ffD700&labelColor=0057B8&style=flat)](https://u24.gov.ua/)
 
 # env
 
@@ -43,11 +43,11 @@ the `export` prefix.
 ## Installation
 
 ```sh
-go get github.com/goloop/env
+go get github.com/goloop/env/v2
 ```
 
 ```go
-import "github.com/goloop/env"
+import "github.com/goloop/env/v2"
 ```
 
 Requires Go 1.24 or newer. The package has no third-party dependencies.
@@ -74,7 +74,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/goloop/env"
+	"github.com/goloop/env/v2"
 )
 
 type Config struct {
@@ -257,7 +257,7 @@ and tips (Ukrainian: **[DOC.UK.md](DOC.UK.md)**).
 ## Documentation
 
 - Full reference and recipes: [DOC.md](DOC.md) · [DOC.UK.md](DOC.UK.md)
-- Package API: [pkg.go.dev/github.com/goloop/env](https://pkg.go.dev/github.com/goloop/env)
+- Package API: [pkg.go.dev/github.com/goloop/env/v2](https://pkg.go.dev/github.com/goloop/env/v2)
 
 ## Contributing
 

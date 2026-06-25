@@ -1,6 +1,6 @@
 # env — reference
 
-Complete reference for `github.com/goloop/env`. For a quick overview see the
+Complete reference for `github.com/goloop/env/v2`. For a quick overview see the
 [README](README.md). Ukrainian version: [DOC.UK.md](DOC.UK.md).
 
 ## Contents

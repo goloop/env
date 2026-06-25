@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/goloop/env"
+	"github.com/goloop/env/v2"
 )
 
 // TestMustLoad checks that MustLoad loads a valid file without panicking.

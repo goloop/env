@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/goloop/env"
+	"github.com/goloop/env/v2"
 )
 
 // TestSliceReplace checks that decoding replaces a slice (like encoding/json)

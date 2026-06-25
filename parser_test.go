@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/goloop/env"
+	"github.com/goloop/env/v2"
 )
 
 // TestInlineComment checks that an unquoted '#' starts a comment only when it
