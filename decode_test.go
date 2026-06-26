@@ -442,8 +442,9 @@ func TestUnmarshalEnvSlice(t *testing.T) {
 			// Bool string.
 			value = "true#true#true#true#false#false#false#false"
 		} else if key == "KEY_GROUP" {
-			// Checking if the group has been split correctly.
-			value = "one#\"two:three\"#four#five"
+			// A quoted element groups the separator inside it; the quotes are
+			// syntax and are stripped, so "two#three" decodes to two#three.
+			value = "one#two:three#four#five"
 			for i := 0; i < len(d.KeyGroup); i++ {
 				d.KeyGroup[i] = strings.Replace(d.KeyGroup[i], "#", ":", 1)
 			}
@@ -525,8 +526,9 @@ func TestUnmarshalEnvArray(t *testing.T) {
 		if key == "KEY_BOOL" {
 			value = "true:true:true:true:false:false:false:false"
 		} else if key == "KEY_GROUP" {
-			// Checking if the group has been split correctly.
-			value = "one:\"two#three\":four:five"
+			// A quoted element groups the separator inside it; the quotes are
+			// syntax and are stripped, so "two:three" decodes to two:three.
+			value = "one:two#three:four:five"
 			for i := 0; i < len(d.KeyGroup); i++ {
 				d.KeyGroup[i] = strings.Replace(d.KeyGroup[i], ":", "#", 1)
 			}

@@ -150,3 +150,28 @@ func TestMarshalWriterUnmarshalReader(t *testing.T) {
 		t.Errorf("round-trip: got %+v, want %+v", out, in)
 	}
 }
+
+// TestMarshalFileLiteralDollar checks that a literal $ survives a file
+// round-trip (UnmarshalFile expands ${VAR}/$VAR, so MarshalFile must write
+// $-values non-expandably).
+func TestMarshalFileLiteralDollar(t *testing.T) {
+	t.Setenv("HOME", "/home/real")
+	type cfg struct {
+		Tmpl string `env:"TMPL"`
+		Cost string `env:"COST"`
+		Apos string `env:"APOS"`
+	}
+	in := cfg{Tmpl: "path=$HOME/app", Cost: "$5.00", Apos: "it's $5"}
+
+	path := t.TempDir() + "/dollar.env"
+	if err := env.MarshalFile(path, in); err != nil {
+		t.Fatal(err)
+	}
+	var back cfg
+	if err := env.UnmarshalFile(path, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back != in {
+		t.Errorf("literal $ round-trip: got %+v, want %+v", back, in)
+	}
+}

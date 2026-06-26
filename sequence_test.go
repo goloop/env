@@ -143,3 +143,59 @@ func TestFieldCacheRespectsOptions(t *testing.T) {
 		t.Errorf("call B (prefix B, default sep): got %+v", b)
 	}
 }
+
+// TestSequenceRoundTrip checks that list values round-trip through both the map
+// and the file paths, including elements that contain the separator (BUG-N1).
+func TestSequenceRoundTrip(t *testing.T) {
+	type cfg struct {
+		V []string `env:"V" sep:","`
+	}
+	cases := [][]string{
+		{"a", "b"},
+		{"a,b", "c"}, // element contains the separator
+		{"a,b,c", "d"},
+		{"plain"},
+		{"x", "y,z", "w"},
+	}
+	for _, want := range cases {
+		// Map round-trip.
+		m, err := env.MarshalMap(cfg{V: want})
+		if err != nil {
+			t.Fatalf("MarshalMap %v: %v", want, err)
+		}
+		var mb cfg
+		if err := env.UnmarshalMap(m, &mb); err != nil {
+			t.Fatalf("UnmarshalMap: %v", err)
+		}
+		if !reflect.DeepEqual(mb.V, want) {
+			t.Errorf("map round-trip: wire=%q got %v want %v", m["V"], mb.V, want)
+		}
+
+		// File round-trip.
+		path := t.TempDir() + "/seq.env"
+		if err := env.MarshalFile(path, cfg{V: want}); err != nil {
+			t.Fatal(err)
+		}
+		var fb cfg
+		if err := env.UnmarshalFile(path, &fb); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(fb.V, want) {
+			t.Errorf("file round-trip: got %v want %v", fb.V, want)
+		}
+	}
+}
+
+// TestSequenceManualQuoting checks that a hand-written quoted element decodes.
+func TestSequenceManualQuoting(t *testing.T) {
+	type cfg struct {
+		Tags []string `env:"TAGS" sep:","`
+	}
+	var c cfg
+	if err := env.UnmarshalMap(map[string]string{"TAGS": `"a,b",c`}, &c); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Tags) != 2 || c.Tags[0] != "a,b" || c.Tags[1] != "c" {
+		t.Errorf(`TAGS="a,b",c -> %v, want ["a,b" "c"]`, c.Tags)
+	}
+}

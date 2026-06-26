@@ -200,14 +200,20 @@ Decoding follows the same presence rules as `encoding/json`:
 
 A slice or array field is encoded by joining its elements with the separator
 (`sep` tag or `WithSeparator`, default a comma) and decoded by splitting on it.
-For a list to round-trip, **an element must not contain the separator** (or
-quote characters). Pick a `sep` that does not occur in your values, or model a
-complex element with a type that implements
-`encoding.TextMarshaler`/`encoding.TextUnmarshaler`.
+An element that contains the separator (or a quote/bracket) is quoted
+automatically, so lists round-trip even with such values:
 
-When writing to a file, `MarshalFile` quotes scalar values that would otherwise
-be misread (a newline, leading/trailing whitespace, or an inline-comment `#`),
-so the file round-trips through `UnmarshalFile`.
+```
+[]string{"a,b", "c"}   <->   "a,b",c
+```
+
+In a hand-written file you may quote an element yourself: `TAGS="a,b",c`.
+
+When writing to a file or an `io.Writer`, a value that would otherwise be
+misread is quoted automatically: newlines, leading/trailing whitespace and an
+inline-comment `#` are escaped, and a value containing `$` is written in single
+quotes so it is not expanded on read. So `MarshalFile`/`MarshalWriter` round-trip
+through `UnmarshalFile`/`UnmarshalReader`.
 
 ## Encoding a struct
 

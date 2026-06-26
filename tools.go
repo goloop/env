@@ -334,7 +334,11 @@ func splitN(str, sep string, n int) (r []string) {
 		case level == 0 && contains(quotes+brackets, char):
 			host, level = char, level+1
 		case contains(quotes, host, char):
-			level, host = 0, 0
+			// Inside double quotes a \" is escaped and does not close the
+			// group (single quotes and backticks have no escapes).
+			if host != '"' || !isEscapedByte(str, i) {
+				level, host = 0, 0
+			}
 		case contains(brackets, host, flips[char]):
 			level--
 			if level <= 0 {
@@ -537,6 +541,17 @@ func parseQuoted(s string, quote byte) (string, bool) {
 	}
 
 	return "", false
+}
+
+// The isEscapedByte reports whether the byte at index i is escaped, i.e.
+// preceded by an odd number of backslashes.
+func isEscapedByte(s string, i int) bool {
+	n := 0
+	for j := i - 1; j >= 0 && s[j] == '\\'; j-- {
+		n++
+	}
+
+	return n%2 == 1
 }
 
 // The inlineCommentIndex returns the index of the '#' that starts an inline

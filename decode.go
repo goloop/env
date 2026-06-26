@@ -299,12 +299,37 @@ func setSequence(item *reflect.Value, seq []string, layout string, s settings) e
 		if !elem.CanSet() {
 			return fmt.Errorf("cannot set value %s at index %d", value, i)
 		}
-		if err := setValue(elem, value, layout, s); err != nil {
+		if err := setValue(elem, unquoteElement(value), layout, s); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// The unquoteElement reverses quoteElement: a double-quoted element is stripped
+// of its quotes and the \ and " escapes are removed. A bare element is returned
+// unchanged.
+func unquoteElement(v string) string {
+	if len(v) < 2 || v[0] != '"' || v[len(v)-1] != '"' {
+		return v
+	}
+
+	inner := v[1 : len(v)-1]
+	if !strings.Contains(inner, "\\") {
+		return inner
+	}
+
+	var b strings.Builder
+	b.Grow(len(inner))
+	for i := 0; i < len(inner); i++ {
+		if inner[i] == '\\' && i+1 < len(inner) {
+			i++
+		}
+		b.WriteByte(inner[i])
+	}
+
+	return b.String()
 }
 
 // The setValue sets value into item (field of the struct).

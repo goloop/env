@@ -234,10 +234,38 @@ func getSequence(item *reflect.Value, sep, layout string, s settings) (string, e
 		if err != nil {
 			return "", err
 		}
-		sb.WriteString(v)
+		sb.WriteString(quoteElement(v, sep))
 	}
 
 	return sb.String(), nil
+}
+
+// The quoteElement wraps a sequence element in double quotes (escaping \ and ")
+// when it would otherwise be mis-split on decode: it contains the separator or
+// starts with a quote character. splitN groups quoted spans, so the quoted
+// element survives the split and is unquoted symmetrically by unquoteElement.
+func quoteElement(v, sep string) string {
+	if v == "" {
+		return v
+	}
+	// Quote when the element contains the separator or any character splitN
+	// groups on (quotes/brackets), which would otherwise mis-split it.
+	if !strings.Contains(v, sep) && !strings.ContainsAny(v, "\"'`()[]{}") {
+		return v
+	}
+
+	var b strings.Builder
+	b.Grow(len(v) + 2)
+	b.WriteByte('"')
+	for i := 0; i < len(v); i++ {
+		if v[i] == '\\' || v[i] == '"' {
+			b.WriteByte('\\')
+		}
+		b.WriteByte(v[i])
+	}
+	b.WriteByte('"')
+
+	return b.String()
 }
 
 // The toStr converts any item to string.
@@ -315,6 +343,20 @@ func quoteEnvValue(value string) string {
 		return value
 	}
 
+	// A value containing '$' must be written non-expandably: the reader expands
+	// ${VAR}/$VAR in unquoted and double-quoted values, but not in single-quoted
+	// or backtick-quoted ones. Pick a quote the value does not itself contain.
+	if strings.ContainsRune(value, '$') {
+		if !strings.ContainsRune(value, '\'') {
+			return "'" + value + "'"
+		}
+		if !strings.ContainsRune(value, '`') {
+			return "`" + value + "`"
+		}
+		// '$' together with both ' and `: fall through to double quotes (the
+		// '$' will be expanded on read — a rare, documented edge).
+	}
+
 	var b strings.Builder
 	b.Grow(len(value) + 2)
 	b.WriteByte('"')
@@ -361,6 +403,8 @@ func needsQuoting(value string) bool {
 		switch value[i] {
 		case '\n', '\r':
 			return true
+		case '$':
+			return true // would be expanded as ${VAR}/$VAR on read
 		case '#':
 			// A "#" preceded by whitespace would start an inline comment.
 			if i > 0 && (value[i-1] == ' ' || value[i-1] == '\t') {

@@ -113,6 +113,12 @@ Several long-standing bugs are fixed. See the
   JWTs, base64 blobs) now parse.
 - `WithPrefix` is applied to the keys of a custom `Marshaler`, the same as for
   reflective structs.
+- List values now round-trip even when an element contains the separator (or a
+  quote/bracket): such elements are quoted on encode and unquoted on decode, so
+  `[]string{"a,b","c"}` survives `Marshal`/`Unmarshal`.
+- A value containing `$` written to a file or `io.Writer` is single-quoted so
+  it is not expanded as `${VAR}`/`$VAR` when read back by `UnmarshalFile`/
+  `UnmarshalReader`.
 
 ### Migration from v1
 
