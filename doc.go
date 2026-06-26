@@ -3,17 +3,18 @@
 // It does three things:
 //
 //  1. Loads .env files into the process environment (a small Load/Overload
-//     API: Load, Overload, LoadRaw, OverloadRaw, LoadReader).
+//     API: Load, Overload, LoadRaw, OverloadRaw, LoadReader, MustLoad).
 //  2. Maps the environment to and from Go structs (an encoding/json-style API:
-//     Unmarshal, Marshal and their Map/File variants) with struct tags,
-//     defaults, validation and rich type support.
-//  3. Parses .env data into plain maps without side effects (Read, Parse).
+//     Unmarshal, Marshal and their Map/File/Reader/Writer variants) with struct
+//     tags, defaults, validation and rich type support.
+//  3. Parses .env data into plain maps without side effects (Read, Parse, All).
 //
 // # Loading
 //
 // Load and friends read one or more .env files (variadic; with no argument
 // they default to ".env") into the process environment. Load keeps existing
 // keys; Overload overwrites them. The Raw variants do not expand ${VAR}/$VAR.
+// MustLoad is like Load but panics on error (handy in init or main).
 //
 //	if err := env.Load(".env"); err != nil {
 //	    log.Fatal(err)
@@ -21,9 +22,9 @@
 //
 // # Decoding into a struct
 //
-// Unmarshal reads the process environment into a struct; UnmarshalMap and
-// UnmarshalFile read a map or a file directly without touching the
-// environment.
+// Unmarshal reads the process environment into a struct; UnmarshalMap,
+// UnmarshalFile and UnmarshalReader read a map, a file or an io.Reader directly
+// without touching the environment.
 //
 //	type Config struct {
 //	    Host    string        `env:"HOST"`
@@ -39,8 +40,9 @@
 //
 // # Encoding a struct
 //
-// Marshal writes a struct into the environment; MarshalMap and MarshalFile
-// produce a map or a file without changing the environment.
+// Marshal writes a struct into the environment; MarshalMap, MarshalFile and
+// MarshalWriter produce a map, a file or write to an io.Writer without changing
+// the environment.
 //
 // # Options
 //
@@ -51,6 +53,9 @@
 //     WithPrefix("APP") maps PORT to APP_PORT.
 //   - WithSeparator sets the default list separator.
 //   - WithTimeLayout sets the default time.Time layout.
+//   - WithFileMode sets the file permissions used by MarshalFile.
+//   - WithParser/WithEncoder register a decoder/encoder for a custom type that
+//     does not implement encoding.TextUnmarshaler/TextMarshaler.
 //
 // # Struct tags
 //
@@ -78,7 +83,7 @@
 //
 // # The .env format
 //
-// The parser follows the de-facto .env specification: single/double/backtick
+// The parser follows the de-facto .env format: single/double/backtick
 // quotes, escape sequences in double quotes (\n, \t, \r, \\, \"), multi-line
 // quoted values, full-line and inline comments, the optional export prefix and
 // ${VAR}/$VAR expansion (in unquoted and double-quoted values only).
@@ -87,9 +92,10 @@
 //
 // Loading and marshaling act on the global process environment. Beyond the
 // guarantees of the standard os package there is no extra synchronization, so
-// callers should not load and read the same keys concurrently. The map- and
-// file-based variants (Read, Parse, UnmarshalMap, MarshalMap, UnmarshalFile,
-// MarshalFile) have no global side effects.
+// callers should not load and read the same keys concurrently. The map-, file-
+// and reader/writer-based variants (Read, Parse, All, UnmarshalMap, MarshalMap,
+// UnmarshalFile, MarshalFile, UnmarshalReader, MarshalWriter) have no global
+// side effects.
 //
 // See DOC.md (English) and DOC.UK.md (Ukrainian) for the full reference.
 package env

@@ -34,12 +34,22 @@ func hasKeyPrefix(source map[string]string, prefix string) bool {
 	return false
 }
 
-// The isNestedStruct reports whether t is a struct (or pointer to one) that is
-// decoded recursively, as opposed to a leaf type (url.URL, time.Time) or a
-// scalar. Nested structs are populated by their sub-keys, so the "absent key"
-// rule does not apply to them.
-func isNestedStruct(t reflect.Type) bool {
+// The isNestedStruct reports whether t (a field type) is a struct decoded
+// recursively, as opposed to a leaf handled by setValue. Leaves are: scalars,
+// slices/arrays, url.URL, time.Time, anything implementing TextUnmarshaler, and
+// any type with a registered parser (WithParser). This single classifier is
+// used by both the absent-key guard and the pointer case so the two cannot
+// drift apart.
+func isNestedStruct(t reflect.Type, s settings) bool {
+	// A registered parser makes the type a leaf (check the type itself and,
+	// for a pointer, its element).
+	if s.parsers[t] != nil {
+		return false
+	}
 	if t.Kind() == reflect.Ptr {
+		if s.parsers[t.Elem()] != nil {
+			return false
+		}
 		t = t.Elem()
 	}
 
@@ -163,12 +173,8 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 	// Absent key with no default: leave the field untouched, like
 	// encoding/json (a present but empty value still clears the field).
 	// Nested structs are excluded - they are populated by their sub-keys
-	// regardless of their own key; a type with a registered parser is a leaf.
-	hasParser := s.parsers[item.Type()] != nil
-	if item.Kind() == reflect.Ptr {
-		hasParser = hasParser || s.parsers[item.Type().Elem()] != nil
-	}
-	if !tg.present && tg.value == "" && (hasParser || !isNestedStruct(item.Type())) {
+	// regardless of their own key.
+	if !tg.present && tg.value == "" && !isNestedStruct(item.Type(), s) {
 		return nil
 	}
 
@@ -232,11 +238,7 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		// guard above (leaf) or below (nested struct), so here we only allocate
 		// when there is something to assign.
 		elemType := item.Type().Elem()
-		isLeaf := elemType.Kind() != reflect.Struct ||
-			elemType == urlType ||
-			elemType == timeTimeType ||
-			implementsTextUnmarshaler(elemType) ||
-			s.parsers[elemType] != nil
+		isLeaf := !isNestedStruct(elemType, s)
 
 		if isLeaf {
 			if item.IsNil() {
