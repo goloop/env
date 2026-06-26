@@ -182,6 +182,9 @@ func scanEntries(r io.Reader, forced bool) ([]rawEntry, error) {
 	var entries []rawEntry
 
 	scanner := bufio.NewScanner(r)
+	// Raise the per-line limit so long values (PEM chains, keys, JWTs,
+	// base64 blobs) are not rejected with "token too long".
+	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 	for scanner.Scan() {
 		text := scanner.Text()
 

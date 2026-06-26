@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] - 2026-06-25
 
 Version 2.0.0 is a major rewrite. The API is reorganized around two familiar
-shapes — a `godotenv`-style loading API and an `encoding/json`-style struct
-API — and the `.env` parser is brought in line with the de-facto `.env`
-specification. Several long-standing bugs are fixed. See the
+shapes — a small file-loading API and an `encoding/json`-style struct API —
+and the `.env` parser is brought in line with the de-facto `.env` format.
+Several long-standing bugs are fixed. See the
 [migration guide](#migration-from-v1) below.
 
 ### Added
@@ -35,7 +35,7 @@ specification. Several long-standing bugs are fixed. See the
   `errors.Is`); conversion errors are wrapped with `%w`.
 - Field-level support for `encoding.TextMarshaler` and
   `encoding.TextUnmarshaler`, so types such as `net.IP`, `netip.Addr`,
-  `uuid.UUID`, `slog.Level` and your own enums work automatically (including
+  `big.Int`, `slog.Level` and your own enums work automatically (including
   slices, arrays and pointers of them).
 - `MustLoad` (panics on error, for `init`/`main`), `All` (an `iter.Seq2`
   iterator over a file's pairs) and the `WithFileMode` option for `MarshalFile`
@@ -95,6 +95,15 @@ specification. Several long-standing bugs are fixed. See the
   truncated.
 - `[]*T` and `[N]*T` (slices/arrays of pointers) now decode, with an empty
   element becoming a nil element.
+- `MarshalFile` quotes values that would otherwise produce an invalid `.env`
+  (a newline, leading/trailing whitespace or an inline-comment `#`), so the
+  file round-trips through `UnmarshalFile`.
+- A pointer-receiver `MarshalText` is now honoured on encode (it used to be
+  ignored, encoding the default kind representation).
+- Values larger than `bufio.Scanner`'s default ~64 KiB limit (PEM chains, keys,
+  JWTs, base64 blobs) now parse.
+- `WithPrefix` is applied to the keys of a custom `Marshaler`, the same as for
+  reflective structs.
 
 ### Migration from v1
 

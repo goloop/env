@@ -72,11 +72,21 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 				return nil, fmt.Errorf("custom marshal method: %w", err)
 			}
 
-			return mapToPairs(tmp[0].Interface().(map[string]string)), nil
+			// Apply the prefix to the custom keys too, so WithPrefix behaves
+			// the same as for reflective structs.
+			pairs := mapToPairs(tmp[0].Interface().(map[string]string))
+			if s.prefix != "" {
+				for i := range pairs {
+					pairs[i].key = s.prefix + pairs[i].key
+				}
+			}
+			return pairs, nil
 		}
 	}
 
-	// Walk through the fields.
+	// Walk the fields of an addressable copy so that pointer-receiver methods
+	// (e.g. a TextMarshaler with a *T receiver) can be called on a field.
+	ev := ptr.Elem()
 	result := make([]pair, 0, rv.NumField())
 	for i := 0; i < rv.NumField(); i++ {
 		field := rt.Field(i)
@@ -126,7 +136,7 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 
 		// Get item. A nil pointer field means "absent value": skip it so the
 		// key is omitted (it round-trips back to nil on decode).
-		item := rv.Field(i)
+		item := ev.Field(i)
 		if item.Kind() == reflect.Ptr {
 			if item.IsNil() {
 				continue
@@ -258,11 +268,19 @@ func toStr(item reflect.Value, layout string) (string, error) {
 		return item.Interface().(time.Time).Format(layout), nil
 	}
 
-	// Any type implementing TextMarshaler (net.IP, uuid.UUID, custom enums,
-	// ...) is formatted via MarshalText. Checked after the special-cased time
-	// types above so time.Time keeps its layout.
-	if m, ok := item.Interface().(encoding.TextMarshaler); ok {
-		b, err := m.MarshalText()
+	// Any type implementing TextMarshaler (net.IP, netip.Addr, custom enums,
+	// ...) is formatted via MarshalText. Try the addressable pointer first so a
+	// pointer-receiver MarshalText is honoured, then the value. Checked after
+	// the special-cased time types above so time.Time keeps its layout.
+	var tm encoding.TextMarshaler
+	if item.CanAddr() {
+		tm, _ = item.Addr().Interface().(encoding.TextMarshaler)
+	}
+	if tm == nil {
+		tm, _ = item.Interface().(encoding.TextMarshaler)
+	}
+	if tm != nil {
+		b, err := tm.MarshalText()
 		if err != nil {
 			return "", err
 		}
@@ -296,4 +314,71 @@ func toStr(item reflect.Value, layout string) (string, error) {
 	}
 
 	return "", fmt.Errorf("incorrect type: %s", item.Type())
+}
+
+// The quoteEnvValue formats value so it round-trips through the parser when
+// written as a KEY=value line. A value that would be misread when written bare
+// (a newline, leading/trailing whitespace, an inline-comment "#", or a leading
+// quote) is wrapped in double quotes with the escapes the parser understands
+// (\n, \t, \r, \\, \"). Plain values are returned unchanged.
+func quoteEnvValue(value string) string {
+	if !needsQuoting(value) {
+		return value
+	}
+
+	var b strings.Builder
+	b.Grow(len(value) + 2)
+	b.WriteByte('"')
+	for _, r := range value {
+		switch r {
+		case '\\':
+			b.WriteString(`\\`)
+		case '"':
+			b.WriteString(`\"`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteByte('"')
+
+	return b.String()
+}
+
+// The needsQuoting reports whether value must be quoted to survive a round-trip
+// as an unquoted .env value.
+func needsQuoting(value string) bool {
+	if value == "" {
+		return false // KEY= is a valid empty value
+	}
+
+	// Unquoted values are trimmed, so edge whitespace would be lost.
+	if value[0] == ' ' || value[0] == '\t' ||
+		value[len(value)-1] == ' ' || value[len(value)-1] == '\t' {
+		return true
+	}
+
+	// A leading quote/backtick would be parsed as a quoted value.
+	if value[0] == '"' || value[0] == '\'' || value[0] == '`' {
+		return true
+	}
+
+	for i := 0; i < len(value); i++ {
+		switch value[i] {
+		case '\n', '\r':
+			return true
+		case '#':
+			// A "#" preceded by whitespace would start an inline comment.
+			if i > 0 && (value[i-1] == ' ' || value[i-1] == '\t') {
+				return true
+			}
+		}
+	}
+
+	return false
 }

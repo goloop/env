@@ -122,8 +122,10 @@ m, _ = env.Parse(strings.NewReader("HOST=localhost\nPORT=8080\n"))
 ```
 
 `All(filenames ...string) iter.Seq2[string, string]` is a convenience iterator
-over a file's pairs, so you can range without building a map yourself. Read or
-parse errors are ignored (it yields nothing); use `Read` if you need them.
+over a file's pairs, so you can range without building a map yourself.
+**Read or parse errors are silently ignored** — a missing or invalid file simply
+yields nothing, indistinguishable from an empty file. **Use `Read` (which
+returns an `error`) whenever you need to handle failures.**
 
 ```go
 for key, value := range env.All(".env") {
@@ -186,10 +188,25 @@ Decoding follows the same presence rules as `encoding/json`:
   env.Unmarshal(&cfg) // PORT not set -> cfg.Port stays 8080
   ```
 
-- A `def` tag supplies the value used when the key is absent.
+- A `def` tag supplies the value used **only when the key is absent**. A
+  present but empty value (`KEY=`) is an explicit zero — it does **not** fall
+  back to `def`.
 - A slice is **replaced**, not appended to, so decoding is idempotent and
   overrides any in-code default. A nested struct is decoded in place, so its
   sub-fields whose keys are absent keep their values.
+
+### Lists
+
+A slice or array field is encoded by joining its elements with the separator
+(`sep` tag or `WithSeparator`, default a comma) and decoded by splitting on it.
+For a list to round-trip, **an element must not contain the separator** (or
+quote characters). Pick a `sep` that does not occur in your values, or model a
+complex element with a type that implements
+`encoding.TextMarshaler`/`encoding.TextUnmarshaler`.
+
+When writing to a file, `MarshalFile` quotes scalar values that would otherwise
+be misread (a newline, leading/trailing whitespace, or an inline-comment `#`),
+so the file round-trips through `UnmarshalFile`.
 
 ## Encoding a struct
 
@@ -366,9 +383,8 @@ its zero values).
 Any field whose type implements `encoding.TextUnmarshaler` (and, for encoding,
 `encoding.TextMarshaler`) is supported automatically — the value is parsed with
 `UnmarshalText` and formatted with `MarshalText`. This covers many standard and
-third-party types (`net.IP`, `netip.Addr`, `uuid.UUID`, `big.Int`,
-`slog.Level`, …) and your own enums, including slices, arrays and pointers of
-them.
+third-party types (`net.IP`, `netip.Addr`, `big.Int`, `slog.Level`, …) and
+your own enums, including slices, arrays and pointers of them.
 
 ```go
 type Config struct {

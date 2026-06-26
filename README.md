@@ -7,8 +7,8 @@ environment and your Go structures.
 
 It does three things, and does them well:
 
-1. **Loads `.env` files into the process environment** — a familiar,
-   `godotenv`-style API (`Load`, `Overload`, …).
+1. **Loads `.env` files into the process environment** — a small, explicit
+   API (`Load`, `Overload`, …).
 2. **Maps the environment to and from Go structs** — a familiar,
    `encoding/json`-style API (`Unmarshal`, `Marshal`, …) with struct tags,
    defaults, validation and rich type support.
@@ -16,15 +16,14 @@ It does three things, and does them well:
    `Parse`), so you can work with configuration from files, `embed.FS`, the
    network or a string.
 
-The parser follows the de-facto `.env` specification (as used by Ruby
-`dotenv`, `motdotla/dotenv` and `godotenv`): single/double/backtick quotes,
+The parser follows the de-facto `.env` format: single/double/backtick quotes,
 escape sequences, multi-line values, inline comments, variable expansion and
 the `export` prefix.
 
 ## Features
 
-- **Familiar API** — `Load`/`Overload` for files (like `godotenv`),
-  `Marshal`/`Unmarshal` for structs (like `encoding/json`).
+- **Familiar API** — `Load`/`Overload` for files, `Marshal`/`Unmarshal` for
+  structs (the same shape as `encoding/json`).
 - **Three destinations** — load into the environment, a `map[string]string`,
   or a typed struct; serialize a struct back to the environment, a map or a
   file.

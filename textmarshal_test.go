@@ -116,3 +116,48 @@ func toStrs(ips []net.IP) []string {
 	}
 	return s
 }
+
+// ptrLevel implements TextMarshaler and TextUnmarshaler with POINTER receivers,
+// a common idiom; both must work on encode and decode.
+type ptrLevel int
+
+func (l *ptrLevel) UnmarshalText(b []byte) error {
+	switch string(b) {
+	case "lo":
+		*l = 0
+	case "hi":
+		*l = 1
+	default:
+		return fmt.Errorf("bad ptrLevel %q", b)
+	}
+	return nil
+}
+
+func (l *ptrLevel) MarshalText() ([]byte, error) {
+	return []byte([...]string{"lo", "hi"}[*l]), nil
+}
+
+// TestPointerReceiverTextMarshaler checks that a pointer-receiver MarshalText is
+// honoured on encode (it used to be ignored, encoding the kind default).
+func TestPointerReceiverTextMarshaler(t *testing.T) {
+	type cfg struct {
+		L ptrLevel `env:"L"`
+	}
+
+	// Encoding a value (not a pointer) must still call the pointer-receiver.
+	m, err := env.MarshalMap(cfg{L: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["L"] != "hi" {
+		t.Errorf("pointer-receiver MarshalText: got %q, want %q", m["L"], "hi")
+	}
+
+	var back cfg
+	if err := env.UnmarshalMap(m, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back.L != 1 {
+		t.Errorf("round-trip: got %d, want 1", back.L)
+	}
+}

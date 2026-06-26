@@ -2,8 +2,8 @@
 //
 // It does three things:
 //
-//  1. Loads .env files into the process environment (a godotenv-style API:
-//     Load, Overload, LoadRaw, OverloadRaw, LoadReader).
+//  1. Loads .env files into the process environment (a small Load/Overload
+//     API: Load, Overload, LoadRaw, OverloadRaw, LoadReader).
 //  2. Maps the environment to and from Go structs (an encoding/json-style API:
 //     Unmarshal, Marshal and their Map/File variants) with struct tags,
 //     defaults, validation and rich type support.

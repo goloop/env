@@ -71,3 +71,57 @@ func TestAll(t *testing.T) {
 		t.Errorf("early break: visited %d, want 1", count)
 	}
 }
+
+// TestMarshalFileEscaping checks that MarshalFile quotes values that would
+// otherwise produce an invalid .env (newlines, edge spaces, inline-# risk), so
+// the file round-trips through UnmarshalFile.
+func TestMarshalFileEscaping(t *testing.T) {
+	type cfg struct {
+		Multi string `env:"MULTI"`
+		Pad   string `env:"PAD"`
+		Hash  string `env:"HASH"`
+		Quote string `env:"QUOTE"`
+		Lead  string `env:"LEAD"`
+		Tab   string `env:"TAB"`
+	}
+	in := cfg{
+		Multi: "line1\nline2",
+		Pad:   "  spaced  ",
+		Hash:  "a # b",
+		Quote: `say "hi"`,
+		Lead:  `"quoted"`,
+		Tab:   "\ttabbed\t",
+	}
+
+	path := t.TempDir() + "/escaped.env"
+	if err := env.MarshalFile(path, in); err != nil {
+		t.Fatal(err)
+	}
+
+	var back cfg
+	if err := env.UnmarshalFile(path, &back); err != nil {
+		t.Fatalf("round-trip read: %v", err)
+	}
+	if back != in {
+		t.Errorf("round-trip: got %+v, want %+v", back, in)
+	}
+}
+
+// prefixMarshaler is a custom Marshaler used to check WithPrefix handling.
+type prefixMarshaler struct{ V int }
+
+func (p prefixMarshaler) MarshalEnv() (map[string]string, error) {
+	return map[string]string{"KEY": "5"}, nil
+}
+
+// TestCustomMarshalerPrefix checks that WithPrefix is applied to the keys of a
+// custom Marshaler, the same as for reflective structs.
+func TestCustomMarshalerPrefix(t *testing.T) {
+	m, err := env.MarshalMap(prefixMarshaler{5}, env.WithPrefix("APP"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["APP_KEY"] != "5" {
+		t.Errorf("custom Marshaler + WithPrefix: got %v, want APP_KEY=5", m)
+	}
+}

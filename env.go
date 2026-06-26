@@ -225,7 +225,7 @@ func MarshalFile(filename string, obj any, opts ...Option) error {
 	for _, p := range pairs {
 		buf.WriteString(p.key)
 		buf.WriteByte('=')
-		buf.WriteString(p.value)
+		buf.WriteString(quoteEnvValue(p.value))
 		buf.WriteByte('\n')
 	}
 

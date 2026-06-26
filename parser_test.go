@@ -89,3 +89,16 @@ func TestErrorContext(t *testing.T) {
 		t.Errorf("expected an error prefixed with the key, got %v", err)
 	}
 }
+
+// TestLargeValue checks that a value longer than bufio.Scanner's default token
+// limit (~64 KiB) is parsed, e.g. a PEM chain, key or base64 blob.
+func TestLargeValue(t *testing.T) {
+	big := strings.Repeat("x", 70000)
+	m, err := env.Parse(strings.NewReader("A=" + big + "\n"))
+	if err != nil {
+		t.Fatalf("Parse large value: %v", err)
+	}
+	if len(m["A"]) != len(big) {
+		t.Errorf("got %d bytes, want %d", len(m["A"]), len(big))
+	}
+}

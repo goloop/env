@@ -373,7 +373,7 @@ func setValue(item reflect.Value, value, layout string) error {
 		return nil
 	}
 
-	// Any type implementing TextUnmarshaler (net.IP, uuid.UUID, custom enums,
+	// Any type implementing TextUnmarshaler (net.IP, netip.Addr, custom enums,
 	// ...) is parsed via UnmarshalText. An empty value leaves the zero value.
 	// This is checked after the special-cased time/url types above.
 	if value != "" && item.CanAddr() {
