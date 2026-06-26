@@ -64,6 +64,9 @@ Several long-standing bugs are fixed. See the
 - A nil pointer field is optional: it decodes as nil when its key is absent and
   is omitted on encode, so optional values round-trip.
 - Conversion errors now include the offending key (e.g. `PORT: ...`).
+- Struct field tags are parsed once per type and cached (like `encoding/json`),
+  which speeds up repeated `Unmarshal`/`Marshal` of the same type and reduces
+  allocations.
 - `go.mod` requires Go 1.24; the package has no third-party dependencies.
 
 ### Removed

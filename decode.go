@@ -96,54 +96,32 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 		return unmarshaler.UnmarshalEnv(source)
 	}
 
-	// Walk through all the fields of the structure
-	// and save data from the source.
+	// Walk the cached field descriptors and save data from the source.
+	// Unexported and env:"-" fields are already excluded by cachedFields.
 	e := v.Elem()
-	for i := 0; i < e.NumField(); i++ {
-		field := t.Elem().Field(i)
-
-		// Skip unexported fields (cannot be set via reflection), as
-		// encoding/json does.
-		if field.PkgPath != "" {
-			continue
-		}
-
-		// Get parameters from tags.
-		// The name of the key and the inline flags (e.g. required).
-		name, required := parseEnvTag(field.Tag.Get(tagNameKey))
-		if name == defValueIgnored {
-			continue // the field is explicitly ignored: env:"-"
-		}
-		if name == "" {
-			name = field.Name
-		}
-
-		// Separator value for slices/arrays.
-		sep := field.Tag.Get(tagNameSep)
+	for _, fi := range cachedFields(t.Elem()) {
+		// Per-field tag overrides the call-level default.
+		sep := fi.sepTag
 		if sep == "" {
 			sep = s.separator
 		}
-
-		// Layout for time.Time fields (tag overrides the call-level default).
-		layout := field.Tag.Get(tagNameLayout)
+		layout := fi.layoutTag
 		if layout == "" {
 			layout = s.timeLayout
 		}
 
-		// Create tag group.
-		def := field.Tag.Get(tagNameValue)
 		tg := &tagGroup{
-			key:      s.prefix + name,
-			value:    def,
+			key:      s.prefix + fi.name,
+			value:    fi.def,
 			sep:      sep,
 			layout:   resolveLayout(layout),
-			required: required,
+			required: fi.required,
 		}
 
 		if !tg.isValid() {
 			return fmt.Errorf(
 				"the %s field does not have a valid key name value: %s",
-				field.Name,
+				fi.goName,
 				tg.key,
 			)
 		}
@@ -157,12 +135,12 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 
 		// A required field must be present in the source unless a default
 		// is provided.
-		if tg.required && !ok && def == "" {
+		if tg.required && !ok && fi.def == "" {
 			return fmt.Errorf("%w: %s", ErrRequired, tg.key)
 		}
 
 		// Set value to field.
-		item := e.Field(i)
+		item := e.Field(fi.index)
 		if err := setFieldValue(source, &item, tg, s); err != nil {
 			return err
 		}

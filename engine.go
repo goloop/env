@@ -5,8 +5,62 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 )
+
+// fieldInfo is the call-independent description of one struct field, derived
+// from its tags. It is cached per struct type so the tags are parsed once.
+type fieldInfo struct {
+	index     int
+	name      string // key name (env tag, or field name)
+	goName    string // Go field name (for error messages)
+	sepTag    string // sep tag, "" if absent
+	layoutTag string // layout tag, "" if absent
+	def       string // def tag (default value)
+	required  bool
+}
+
+// fieldCache maps a struct reflect.Type to its cached []fieldInfo.
+var fieldCache sync.Map
+
+// The cachedFields returns the decoded field descriptors for the struct type t,
+// computing them once and reusing them on later calls (like encoding/json's
+// field cache). Unexported and env:"-" fields are excluded.
+func cachedFields(t reflect.Type) []fieldInfo {
+	if v, ok := fieldCache.Load(t); ok {
+		return v.([]fieldInfo)
+	}
+
+	fields := make([]fieldInfo, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if f.PkgPath != "" {
+			continue // unexported, like encoding/json
+		}
+
+		name, required := parseEnvTag(f.Tag.Get(tagNameKey))
+		if name == defValueIgnored {
+			continue // env:"-"
+		}
+		if name == "" {
+			name = f.Name
+		}
+
+		fields = append(fields, fieldInfo{
+			index:     i,
+			name:      name,
+			goName:    f.Name,
+			sepTag:    f.Tag.Get(tagNameSep),
+			layoutTag: f.Tag.Get(tagNameLayout),
+			def:       f.Tag.Get(tagNameValue),
+			required:  required,
+		})
+	}
+
+	v, _ := fieldCache.LoadOrStore(t, fields)
+	return v.([]fieldInfo)
+}
 
 // Cached reflect.Types for the special-cased field types (avoids recomputing
 // them on every field/element in the hot path).

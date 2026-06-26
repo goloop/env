@@ -86,42 +86,24 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 
 	// Walk the fields of an addressable copy so that pointer-receiver methods
 	// (e.g. a TextMarshaler with a *T receiver) can be called on a field.
+	// Walk the cached field descriptors. Unexported and env:"-" fields are
+	// already excluded by cachedFields.
 	ev := ptr.Elem()
-	result := make([]pair, 0, rv.NumField())
-	for i := 0; i < rv.NumField(); i++ {
-		field := rt.Field(i)
-
-		// Skip unexported fields, as encoding/json does.
-		if field.PkgPath != "" {
-			continue
-		}
-
-		// Get parameters from tags.
-		// The name of the key and the inline flags.
-		name, _ := parseEnvTag(field.Tag.Get(tagNameKey))
-		if name == defValueIgnored {
-			continue // the field is explicitly ignored: env:"-"
-		}
-		if name == "" {
-			name = field.Name
-		}
-
-		// Separator value for slices/arrays.
-		sep := field.Tag.Get(tagNameSep)
+	result := make([]pair, 0, rt.NumField())
+	for _, fi := range cachedFields(rt) {
+		// Per-field tag overrides the call-level default.
+		sep := fi.sepTag
 		if sep == "" {
 			sep = s.separator
 		}
-
-		// Layout for time.Time fields (tag overrides the call-level default).
-		layout := field.Tag.Get(tagNameLayout)
+		layout := fi.layoutTag
 		if layout == "" {
 			layout = s.timeLayout
 		}
 
-		// Create tag group.
 		tg := &tagGroup{
-			key:    name,
-			value:  field.Tag.Get(tagNameValue),
+			key:    fi.name,
+			value:  fi.def,
 			sep:    sep,
 			layout: resolveLayout(layout),
 		}
@@ -129,14 +111,14 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 		if !tg.isValid() {
 			return nil, fmt.Errorf(
 				"the %s field does not have a valid key name value: %s",
-				field.Name,
+				fi.goName,
 				tg.key,
 			)
 		}
 
 		// Get item. A nil pointer field means "absent value": skip it so the
 		// key is omitted (it round-trips back to nil on decode).
-		item := ev.Field(i)
+		item := ev.Field(fi.index)
 		if item.Kind() == reflect.Ptr {
 			if item.IsNil() {
 				continue

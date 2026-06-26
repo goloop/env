@@ -1,18 +1,18 @@
 goos: linux
 goarch: arm64
 pkg: github.com/goloop/env/v2
-BenchmarkSet-8                   	 5082318	       237.3 ns/op	      24 B/op	       1 allocs/op
-BenchmarkGet-8                   	61015653	        19.84 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLookup-8                	45040534	        26.49 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSplitN-8                	  806157	      1932 ns/op	      80 B/op	       1 allocs/op
-BenchmarkMarshalSimple-8         	  169340	      6589 ns/op	    1720 B/op	      36 allocs/op
-BenchmarkUnmarshalSimple-8       	  145610	      7955 ns/op	    7066 B/op	      36 allocs/op
-BenchmarkLoadEnvFile-8           	  165453	      7159 ns/op	    5571 B/op	      24 allocs/op
-BenchmarkUnmarshalConcurrent-8   	  285444	      4058 ns/op	    7195 B/op	      36 allocs/op
-BenchmarkURLParsing-8            	  145816	      7685 ns/op	    7018 B/op	      30 allocs/op
-BenchmarkTypeConversion/INT-8    	 3217257	       339.8 ns/op	      96 B/op	       4 allocs/op
-BenchmarkTypeConversion/FLOAT-8  	 3373069	       396.3 ns/op	      96 B/op	       4 allocs/op
-BenchmarkTypeConversion/BOOL-8   	 3247423	       328.7 ns/op	      84 B/op	       4 allocs/op
-BenchmarkTypeConversion/STRING-8 	 3514116	       354.6 ns/op	      98 B/op	       4 allocs/op
+BenchmarkSet-8                   	 4950474	       248.6 ns/op	      24 B/op	       1 allocs/op
+BenchmarkGet-8                   	60179535	        19.99 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLookup-8                	59032722	        20.18 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSplitN-8                	  862701	      1336 ns/op	      80 B/op	       1 allocs/op
+BenchmarkMarshalSimple-8         	  229843	      5143 ns/op	    1856 B/op	      37 allocs/op
+BenchmarkUnmarshalSimple-8       	  172106	      6764 ns/op	    6938 B/op	      28 allocs/op
+BenchmarkLoadEnvFile-8           	  172082	      7250 ns/op	    5579 B/op	      24 allocs/op
+BenchmarkUnmarshalConcurrent-8   	  353670	      3644 ns/op	    7067 B/op	      28 allocs/op
+BenchmarkURLParsing-8            	  181248	      7412 ns/op	    6890 B/op	      22 allocs/op
+BenchmarkTypeConversion/BOOL-8   	 4791040	       226.1 ns/op	      68 B/op	       3 allocs/op
+BenchmarkTypeConversion/STRING-8 	 4832852	       238.6 ns/op	      82 B/op	       3 allocs/op
+BenchmarkTypeConversion/INT-8    	 4805883	       281.5 ns/op	      80 B/op	       3 allocs/op
+BenchmarkTypeConversion/FLOAT-8  	 4759977	       249.5 ns/op	      80 B/op	       3 allocs/op
 PASS
-ok  	github.com/goloop/env/v2	18.569s
+ok  	github.com/goloop/env/v2	17.419s

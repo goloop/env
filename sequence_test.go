@@ -109,3 +109,37 @@ func TestNestedStructDefaultsPreserved(t *testing.T) {
 		t.Errorf("nested defaults: got %+v, want {A:10 B:2}", c.In)
 	}
 }
+
+// TestFieldCacheRespectsOptions checks that the per-type field cache does not
+// leak call-level settings: the same struct type decoded with different
+// prefixes and separators must behave correctly each time.
+func TestFieldCacheRespectsOptions(t *testing.T) {
+	type cfg struct {
+		Items []string `env:"ITEMS"`
+		Port  int      `env:"PORT"`
+	}
+
+	var a cfg
+	err := env.UnmarshalMap(
+		map[string]string{"A_ITEMS": "x:y", "A_PORT": "1"},
+		&a, env.WithPrefix("A"), env.WithSeparator(":"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Items) != 2 || a.Items[0] != "x" || a.Port != 1 {
+		t.Errorf("call A (prefix A, sep ':'): got %+v", a)
+	}
+
+	var b cfg
+	err = env.UnmarshalMap(
+		map[string]string{"B_ITEMS": "p,q,r", "B_PORT": "2"},
+		&b, env.WithPrefix("B"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b.Items) != 3 || b.Items[0] != "p" || b.Port != 2 {
+		t.Errorf("call B (prefix B, default sep): got %+v", b)
+	}
+}
