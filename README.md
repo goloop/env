@@ -188,6 +188,7 @@ value.
 | `Unmarshal(v, opts...)`        | `Marshal(v, opts...)` → environment |
 | `UnmarshalMap(m, v, opts...)`  | `MarshalMap(v, opts...)` → map |
 | `UnmarshalFile(name, v, opts...)` | `MarshalFile(name, v, opts...)` → file |
+| `UnmarshalReader(r, v, opts...)` | `MarshalWriter(w, v, opts...)` → `io.Writer` |
 
 **Options:** `WithPrefix(p)`, `WithSeparator(sep)`, `WithTimeLayout(layout)`,
 `WithFileMode(mode)` (for `MarshalFile`), `WithParser[T]`/`WithEncoder[T]` (custom

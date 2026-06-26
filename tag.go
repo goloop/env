@@ -17,12 +17,6 @@ func (tg tagGroup) isValid() bool {
 	return validKeyRgx.MatchString(tg.key)
 }
 
-// The isIgnored method returns true if the key name is
-// defValueIgnored or incorrect.
-func (tg tagGroup) isIgnored() bool {
-	return !tg.isValid() || tg.key == defValueIgnored
-}
-
 // The parseEnvTag splits the value of the env tag into the key name and the
 // inline flags. The first comma-separated item is the name; the rest are
 // flags (currently only "required").

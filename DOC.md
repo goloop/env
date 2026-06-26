@@ -143,6 +143,7 @@ anything back.
 func Unmarshal(v any, opts ...Option) error                          // from os.Environ
 func UnmarshalMap(m map[string]string, v any, opts ...Option) error  // from a map
 func UnmarshalFile(filename string, v any, opts ...Option) error     // from a file
+func UnmarshalReader(r io.Reader, v any, opts ...Option) error        // from a reader
 ```
 
 `v` must be a non-nil pointer to a struct. Fields are matched by the `env` tag
@@ -214,6 +215,7 @@ so the file round-trips through `UnmarshalFile`.
 func Marshal(v any, opts ...Option) error                       // into os.Environ
 func MarshalMap(v any, opts ...Option) (map[string]string, error) // into a map
 func MarshalFile(filename string, v any, opts ...Option) error  // into a file
+func MarshalWriter(w io.Writer, v any, opts ...Option) error    // into a writer
 ```
 
 `Marshal` writes each field into the process environment (overwriting). The

@@ -142,6 +142,7 @@ for key, value := range env.All(".env") {
 func Unmarshal(v any, opts ...Option) error                          // з os.Environ
 func UnmarshalMap(m map[string]string, v any, opts ...Option) error  // з map
 func UnmarshalFile(filename string, v any, opts ...Option) error     // з файлу
+func UnmarshalReader(r io.Reader, v any, opts ...Option) error        // з reader
 ```
 
 `v` має бути ненульовим вказівником на структуру. Поля зіставляються за тегом
@@ -209,6 +210,7 @@ round-trip-иться через `UnmarshalFile`.
 func Marshal(v any, opts ...Option) error                         // в os.Environ
 func MarshalMap(v any, opts ...Option) (map[string]string, error) // в map
 func MarshalFile(filename string, v any, opts ...Option) error    // у файл
+func MarshalWriter(w io.Writer, v any, opts ...Option) error      // у writer
 ```
 
 `Marshal` пише кожне поле в процесне оточення (з перезаписом). Варіанти `*Map`

@@ -1,6 +1,7 @@
 package env_test
 
 import (
+	"bytes"
 	"os"
 	"testing"
 
@@ -123,5 +124,29 @@ func TestCustomMarshalerPrefix(t *testing.T) {
 	}
 	if m["APP_KEY"] != "5" {
 		t.Errorf("custom Marshaler + WithPrefix: got %v, want APP_KEY=5", m)
+	}
+}
+
+// TestMarshalWriterUnmarshalReader checks the io.Writer/io.Reader symmetry and
+// that the written text round-trips (including a value needing quoting).
+func TestMarshalWriterUnmarshalReader(t *testing.T) {
+	type cfg struct {
+		Host string `env:"HOST"`
+		Port int    `env:"PORT"`
+		Note string `env:"NOTE"`
+	}
+	in := cfg{Host: "localhost", Port: 8080, Note: "a # b"}
+
+	var buf bytes.Buffer
+	if err := env.MarshalWriter(&buf, in); err != nil {
+		t.Fatal(err)
+	}
+
+	var out cfg
+	if err := env.UnmarshalReader(&buf, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out != in {
+		t.Errorf("round-trip: got %+v, want %+v", out, in)
 	}
 }

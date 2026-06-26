@@ -44,6 +44,8 @@ Several long-standing bugs are fixed. See the
   type you do not control and that does not implement
   `encoding.TextUnmarshaler`/`TextMarshaler`; they apply to the type and to
   slices, arrays and pointers of it, and take precedence over the built-ins.
+- `MarshalWriter(w io.Writer, …)` and `UnmarshalReader(r io.Reader, …)` complete
+  the reader/writer symmetry (counterparts of `LoadReader` and `UnmarshalFile`).
 - Full reference documentation: `DOC.md` (English) and `DOC.UK.md` (Ukrainian),
   plus runnable `Example` functions.
 

@@ -215,10 +215,37 @@ func All(filenames ...string) iter.Seq2[string, string] {
 //	env.MarshalFile("/tmp/.env", config)
 func MarshalFile(filename string, obj any, opts ...Option) error {
 	st := newSettings(opts...)
-
-	pairs, err := encodeStruct(obj, st)
+	b, err := encodeLines(obj, st)
 	if err != nil {
 		return err
+	}
+
+	return os.WriteFile(filename, b, st.fileMode)
+}
+
+// MarshalWriter writes the struct obj as KEY=value lines to w, the symmetric
+// counterpart of LoadReader, without changing the process environment. It is
+// handy for logs, network connections or buffers. See Marshal for the supported
+// field types and tags.
+//
+//	var buf bytes.Buffer
+//	env.MarshalWriter(&buf, config)
+func MarshalWriter(w io.Writer, obj any, opts ...Option) error {
+	b, err := encodeLines(obj, newSettings(opts...))
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(b)
+	return err
+}
+
+// The encodeLines encodes obj into the KEY=value text body, quoting values that
+// need it so the result round-trips through the parser.
+func encodeLines(obj any, st settings) ([]byte, error) {
+	pairs, err := encodeStruct(obj, st)
+	if err != nil {
+		return nil, err
 	}
 
 	var buf bytes.Buffer
@@ -229,7 +256,7 @@ func MarshalFile(filename string, obj any, opts ...Option) error {
 		buf.WriteByte('\n')
 	}
 
-	return os.WriteFile(filename, buf.Bytes(), st.fileMode)
+	return buf.Bytes(), nil
 }
 
 // MarshalMap converts the struct obj into a map of key/value pairs without
@@ -330,6 +357,20 @@ func UnmarshalMap(m map[string]string, obj any, opts ...Option) error {
 // (no expansion) use ParseRaw together with UnmarshalMap.
 func UnmarshalFile(filename string, obj any, opts ...Option) error {
 	m, err := readFiles([]string{filename}, true)
+	if err != nil {
+		return err
+	}
+
+	return decodeStruct(m, obj, newSettings(opts...))
+}
+
+// UnmarshalReader reads .env data from r and decodes it into the struct pointed
+// to by obj, expanding ${VAR}/$VAR, without touching the process environment.
+// It is the symmetric counterpart of LoadReader and is handy for embedded files
+// (embed.FS), the network or a string. For the raw form (no expansion) use
+// ParseRaw together with UnmarshalMap.
+func UnmarshalReader(r io.Reader, obj any, opts ...Option) error {
+	m, err := parse(r, true)
 	if err != nil {
 		return err
 	}
