@@ -152,13 +152,23 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 // The setFieldValue sets value to field from the tag arguments. The source
 // and s are threaded through for the recursive decoding of nested structs.
 func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, s settings) error {
-	child := settings{prefix: tg.key + "_", separator: s.separator, timeLayout: s.timeLayout}
+	child := settings{
+		prefix:     tg.key + "_",
+		separator:  s.separator,
+		timeLayout: s.timeLayout,
+		parsers:    s.parsers,
+		encoders:   s.encoders,
+	}
 
 	// Absent key with no default: leave the field untouched, like
 	// encoding/json (a present but empty value still clears the field).
 	// Nested structs are excluded - they are populated by their sub-keys
-	// regardless of their own key.
-	if !tg.present && tg.value == "" && !isNestedStruct(item.Type()) {
+	// regardless of their own key; a type with a registered parser is a leaf.
+	hasParser := s.parsers[item.Type()] != nil
+	if item.Kind() == reflect.Ptr {
+		hasParser = hasParser || s.parsers[item.Type().Elem()] != nil
+	}
+	if !tg.present && tg.value == "" && (hasParser || !isNestedStruct(item.Type())) {
 		return nil
 	}
 
@@ -172,12 +182,27 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		return fmt.Errorf("%s: %w", tg.key, err)
 	}
 
+	// A custom parser (WithParser) takes precedence over the built-in handling
+	// for its type. Pointers flow through the Ptr case below, which dereferences
+	// to setValue (which also consults the parser).
+	if item.Kind() != reflect.Ptr && s.parsers[item.Type()] != nil {
+		if !tg.present && tg.value == "" {
+			return nil // absent, no default: leave the field untouched
+		}
+		rv, err := s.parsers[item.Type()](tg.value)
+		if err != nil {
+			return keyErr(err)
+		}
+		item.Set(rv)
+		return nil
+	}
+
 	// A non-pointer type that implements TextUnmarshaler is a leaf regardless
 	// of its kind (e.g. net.IP is a slice), so handle it before the kind
 	// switch. Pointers flow through the Ptr case, which dereferences to
 	// setValue. time.Time/url.URL keep their special handling inside setValue.
 	if item.Kind() != reflect.Ptr && implementsTextUnmarshaler(item.Type()) {
-		return keyErr(setValue(*item, tg.value, tg.layout))
+		return keyErr(setValue(*item, tg.value, tg.layout, s))
 	}
 
 	switch item.Kind() {
@@ -190,13 +215,13 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 
 		// Replace: clear the array, then fill the parsed elements.
 		item.Set(reflect.Zero(item.Type()))
-		if err := setSequence(item, seq, tg.layout); err != nil {
+		if err := setSequence(item, seq, tg.layout, s); err != nil {
 			return keyErr(err)
 		}
 	case reflect.Slice:
 		seq := splitN(tg.value, tg.sep, -1)
 		tmp := reflect.MakeSlice(item.Type(), len(seq), len(seq))
-		if err := setSequence(&tmp, seq, tg.layout); err != nil {
+		if err := setSequence(&tmp, seq, tg.layout, s); err != nil {
 			return keyErr(err)
 		}
 
@@ -210,13 +235,14 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		isLeaf := elemType.Kind() != reflect.Struct ||
 			elemType == urlType ||
 			elemType == timeTimeType ||
-			implementsTextUnmarshaler(elemType)
+			implementsTextUnmarshaler(elemType) ||
+			s.parsers[elemType] != nil
 
 		if isLeaf {
 			if item.IsNil() {
 				item.Set(reflect.New(elemType))
 			}
-			if err := setValue(item.Elem(), tg.value, tg.layout); err != nil {
+			if err := setValue(item.Elem(), tg.value, tg.layout, s); err != nil {
 				return keyErr(err)
 			}
 			break
@@ -237,7 +263,7 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		if item.Type() == urlType ||
 			item.Type() == timeTimeType {
 			// A leaf struct type handled by setValue.
-			if err := setValue(*item, tg.value, tg.layout); err != nil {
+			if err := setValue(*item, tg.value, tg.layout, s); err != nil {
 				return keyErr(err)
 			}
 			break
@@ -250,7 +276,7 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		}
 	default:
 		// Try to set correct value.
-		if err := setValue(*item, tg.value, tg.layout); err != nil {
+		if err := setValue(*item, tg.value, tg.layout, s); err != nil {
 			return keyErr(err)
 		}
 	}
@@ -259,7 +285,7 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 }
 
 // The setSequence sets slice into item, if item is slice or array.
-func setSequence(item *reflect.Value, seq []string, layout string) error {
+func setSequence(item *reflect.Value, seq []string, layout string, s settings) error {
 	// Ignore empty sequences.
 	if len(seq) == 0 || item.Len() == 0 {
 		return nil
@@ -271,7 +297,7 @@ func setSequence(item *reflect.Value, seq []string, layout string) error {
 		if !elem.CanSet() {
 			return fmt.Errorf("cannot set value %s at index %d", value, i)
 		}
-		if err := setValue(elem, value, layout); err != nil {
+		if err := setValue(elem, value, layout, s); err != nil {
 			return err
 		}
 	}
@@ -280,7 +306,18 @@ func setSequence(item *reflect.Value, seq []string, layout string) error {
 }
 
 // The setValue sets value into item (field of the struct).
-func setValue(item reflect.Value, value, layout string) error {
+func setValue(item reflect.Value, value, layout string, s settings) error {
+	// A custom parser (WithParser) wins over the built-in handling for its
+	// type. This also covers slice/array elements and dereferenced pointers.
+	if p := s.parsers[item.Type()]; p != nil {
+		rv, err := p(value)
+		if err != nil {
+			return err
+		}
+		item.Set(rv)
+		return nil
+	}
+
 	// time.Duration (an int64) and time.Time (a struct) are parsed by type,
 	// before the generic kind handling. An empty value keeps the zero value.
 	switch item.Type() {
@@ -338,7 +375,7 @@ func setValue(item reflect.Value, value, layout string) error {
 		if item.IsNil() {
 			item.Set(reflect.New(item.Type().Elem()))
 		}
-		return setValue(item.Elem(), value, layout)
+		return setValue(item.Elem(), value, layout, s)
 	}
 
 	// The url.URL struct only.

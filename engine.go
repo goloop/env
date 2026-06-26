@@ -83,6 +83,12 @@ type settings struct {
 	separator  string
 	timeLayout string
 	fileMode   os.FileMode
+
+	// Custom per-type parsers/encoders registered with WithParser/WithEncoder.
+	// Both maps are nil unless an option registers a type (a nil-map read is
+	// safe, so the hot path costs only a lookup).
+	parsers  map[reflect.Type]func(string) (reflect.Value, error)
+	encoders map[reflect.Type]func(reflect.Value) (string, error)
 }
 
 // The resolveLayout maps a layout name to a Go reference-time layout. It

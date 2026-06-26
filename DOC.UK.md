@@ -238,6 +238,8 @@ func WithPrefix(prefix string) Option
 func WithSeparator(sep string) Option
 func WithTimeLayout(layout string) Option
 func WithFileMode(mode os.FileMode) Option
+func WithParser[T any](parse func(string) (T, error)) Option
+func WithEncoder[T any](encode func(T) (string, error)) Option
 ```
 
 ### WithPrefix
@@ -299,6 +301,26 @@ env.Unmarshal(&c, env.WithTimeLayout("DateOnly"))
 ```go
 env.MarshalFile(".env", cfg, env.WithFileMode(0o600))
 ```
+
+### WithParser / WithEncoder
+
+Реєструє декодер (і енкодер) для типу, який ти не контролюєш і який не реалізує
+`encoding.TextUnmarshaler`/`TextMarshaler`. Зареєстрована функція має пріоритет
+над вбудованою обробкою цього типу й діє на сам тип та на слайси/масиви/
+вказівники на нього.
+
+```go
+// Money — тип з іншого пакета, зі своїми ParseMoney/String.
+opts := []env.Option{
+	env.WithParser(func(s string) (Money, error) { return ParseMoney(s) }),
+	env.WithEncoder(func(m Money) (string, error) { return m.String(), nil }),
+}
+env.Unmarshal(&cfg, opts...)
+m, _ := env.MarshalMap(cfg, opts...)
+```
+
+Можна зареєструвати лише парсер — тоді кодування впаде на вбудовану обробку;
+для чистого round-trip реєструй обидва.
 
 ## Теги структур
 
@@ -392,9 +414,9 @@ type Config struct {
 Спецкейс `time.Time` зберігає свій тег `layout` (його обробляють до шляху
 `TextUnmarshaler`), а `url.URL` парситься напряму.
 
-> Потрібен тип, який ти не контролюєш і який не має `TextUnmarshaler`? Загорни
-> його в тонкий іменований тип із методом `UnmarshalText`. (Опція реєстрації
-> `WithParser` запланована на майбутній реліз.)
+> Потрібен тип, який ти не контролюєш і який не має `TextUnmarshaler`? Зареєструй
+> парсер через `WithParser` (і енкодер через `WithEncoder`) — див. Опції. Або
+> загорни його в тонкий іменований тип із методом `UnmarshalText`.
 
 ### Опціональні поля (вказівники)
 

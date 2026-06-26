@@ -40,6 +40,10 @@ Several long-standing bugs are fixed. See the
 - `MustLoad` (panics on error, for `init`/`main`), `All` (an `iter.Seq2`
   iterator over a file's pairs) and the `WithFileMode` option for `MarshalFile`
   (default `0o644`; use `0o600` for secrets).
+- `WithParser[T]` and `WithEncoder[T]` options register a decoder/encoder for a
+  type you do not control and that does not implement
+  `encoding.TextUnmarshaler`/`TextMarshaler`; they apply to the type and to
+  slices, arrays and pointers of it, and take precedence over the built-ins.
 - Full reference documentation: `DOC.md` (English) and `DOC.UK.md` (Ukrainian),
   plus runnable `Example` functions.
 

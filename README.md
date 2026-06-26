@@ -190,7 +190,8 @@ value.
 | `UnmarshalFile(name, v, opts...)` | `MarshalFile(name, v, opts...)` → file |
 
 **Options:** `WithPrefix(p)`, `WithSeparator(sep)`, `WithTimeLayout(layout)`,
-`WithFileMode(mode)` (for `MarshalFile`).
+`WithFileMode(mode)` (for `MarshalFile`), `WithParser[T]`/`WithEncoder[T]` (custom
+type handling).
 
 **Environment helpers** (thin wrappers over `os`): `Get`, `Set`, `Unset`,
 `Clear`, `Environ`, `Expand`, `Lookup`, `Exists`.

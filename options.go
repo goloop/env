@@ -2,6 +2,7 @@ package env
 
 import (
 	"os"
+	"reflect"
 	"strings"
 )
 
@@ -35,6 +36,49 @@ func WithTimeLayout(layout string) Option {
 // file. The built-in default is 0o644; use 0o600 for files that hold secrets.
 func WithFileMode(mode os.FileMode) Option {
 	return func(s *settings) { s.fileMode = mode }
+}
+
+// WithParser registers a decoder for fields of type T (and elements of slices,
+// arrays and pointers of T). It is the escape hatch for third-party types that
+// do not implement encoding.TextUnmarshaler: the function turns the raw string
+// into a T. A registered parser takes precedence over the built-in handling
+// (including TextUnmarshaler) for that type. Pair it with WithEncoder for a
+// round-trip.
+//
+//	env.Unmarshal(&cfg, env.WithParser(func(s string) (Money, error) {
+//		return ParseMoney(s)
+//	}))
+func WithParser[T any](parse func(string) (T, error)) Option {
+	rt := reflect.TypeOf((*T)(nil)).Elem()
+	return func(s *settings) {
+		if s.parsers == nil {
+			s.parsers = make(map[reflect.Type]func(string) (reflect.Value, error))
+		}
+		s.parsers[rt] = func(v string) (reflect.Value, error) {
+			out, err := parse(v)
+			return reflect.ValueOf(out), err
+		}
+	}
+}
+
+// WithEncoder registers an encoder for fields of type T (the encode counterpart
+// of WithParser). The function turns a T into its string form. A registered
+// encoder takes precedence over the built-in handling (including TextMarshaler)
+// for that type.
+//
+//	env.Marshal(cfg, env.WithEncoder(func(m Money) (string, error) {
+//		return m.String(), nil
+//	}))
+func WithEncoder[T any](encode func(T) (string, error)) Option {
+	rt := reflect.TypeOf((*T)(nil)).Elem()
+	return func(s *settings) {
+		if s.encoders == nil {
+			s.encoders = make(map[reflect.Type]func(reflect.Value) (string, error))
+		}
+		s.encoders[rt] = func(rv reflect.Value) (string, error) {
+			return encode(rv.Interface().(T))
+		}
+	}
 }
 
 // newSettings builds the resolved settings for the public API from the given

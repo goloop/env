@@ -243,6 +243,8 @@ func WithPrefix(prefix string) Option
 func WithSeparator(sep string) Option
 func WithTimeLayout(layout string) Option
 func WithFileMode(mode os.FileMode) Option
+func WithParser[T any](parse func(string) (T, error)) Option
+func WithEncoder[T any](encode func(T) (string, error)) Option
 ```
 
 ### WithPrefix
@@ -304,6 +306,26 @@ is `0o644`; use `0o600` for files that hold secrets.
 ```go
 env.MarshalFile(".env", cfg, env.WithFileMode(0o600))
 ```
+
+### WithParser / WithEncoder
+
+Register a decoder (and encoder) for a type you do not control and that does not
+implement `encoding.TextUnmarshaler`/`TextMarshaler`. A registered function
+takes precedence over the built-in handling for that type, and applies to the
+type itself and to slices, arrays and pointers of it.
+
+```go
+// Money is a type from another package, with its own ParseMoney/String.
+opts := []env.Option{
+	env.WithParser(func(s string) (Money, error) { return ParseMoney(s) }),
+	env.WithEncoder(func(m Money) (string, error) { return m.String(), nil }),
+}
+env.Unmarshal(&cfg, opts...)
+m, _ := env.MarshalMap(cfg, opts...)
+```
+
+Registering only a parser is fine — encoding then falls back to the built-in
+handling; register both for a clean round-trip.
 
 ## Struct tags
 
@@ -397,9 +419,9 @@ type Config struct {
 The special-cased `time.Time` keeps its `layout` tag (it is handled before the
 `TextUnmarshaler` path), and `url.URL` is parsed directly.
 
-> Need a type you do not control and that lacks `TextUnmarshaler`? Wrap it in a
-> small named type with an `UnmarshalText` method. (A `WithParser` registration
-> option is planned for a future release.)
+> Need a type you do not control and that lacks `TextUnmarshaler`? Register a
+> parser with `WithParser` (and an encoder with `WithEncoder`) — see Options.
+> Alternatively, wrap it in a small named type with an `UnmarshalText` method.
 
 ### Optional fields (pointers)
 

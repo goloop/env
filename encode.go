@@ -84,10 +84,9 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 		}
 	}
 
-	// Walk the fields of an addressable copy so that pointer-receiver methods
-	// (e.g. a TextMarshaler with a *T receiver) can be called on a field.
-	// Walk the cached field descriptors. Unexported and env:"-" fields are
-	// already excluded by cachedFields.
+	// Walk the cached field descriptors over an addressable copy, so
+	// pointer-receiver methods (e.g. a *T-receiver TextMarshaler) can be called.
+	// Unexported and env:"-" fields are already excluded by cachedFields.
 	ev := ptr.Elem()
 	result := make([]pair, 0, rt.NumField())
 	for _, fi := range cachedFields(rt) {
@@ -126,11 +125,11 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 			item = item.Elem()
 		}
 
-		// A type implementing TextMarshaler is a leaf regardless of its kind
-		// (e.g. net.IP is a slice), so format it via toStr before the kind
-		// switch. time.Time still uses its layout (handled inside toStr).
-		if implementsTextMarshaler(item.Type()) {
-			value, err := toStr(item, tg.layout)
+		// A custom encoder (WithEncoder) or a TextMarshaler is a leaf regardless
+		// of its kind (e.g. net.IP is a slice), so format it via toStr before
+		// the kind switch. time.Time still uses its layout (handled in toStr).
+		if s.encoders[item.Type()] != nil || implementsTextMarshaler(item.Type()) {
+			value, err := toStr(item, tg.layout, s)
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", s.prefix+tg.key, err)
 			}
@@ -140,7 +139,7 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 
 		switch item.Kind() {
 		case reflect.Array, reflect.Slice:
-			value, err := getSequence(&item, tg.sep, tg.layout)
+			value, err := getSequence(&item, tg.sep, tg.layout, s)
 			if err != nil {
 				return nil, err
 			}
@@ -162,6 +161,8 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 				prefix:     s.prefix + tg.key + "_",
 				separator:  s.separator,
 				timeLayout: s.timeLayout,
+				parsers:    s.parsers,
+				encoders:   s.encoders,
 			}
 			nested, err := encodeStruct(item.Interface(), child)
 			if err != nil {
@@ -171,7 +172,7 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 			result = append(result, nested...)
 			continue // nested struct contributes its own pairs
 		default:
-			value, err := toStr(item, tg.layout)
+			value, err := toStr(item, tg.layout, s)
 			if err != nil {
 				return nil, err
 			}
@@ -204,7 +205,7 @@ func mapToPairs(m map[string]string) []pair {
 // The getSequence joins the elements of a slice or array into a string. A nil
 // pointer element is written as an empty value at its position (so it
 // round-trips back to a nil element on decode).
-func getSequence(item *reflect.Value, sep, layout string) (string, error) {
+func getSequence(item *reflect.Value, sep, layout string, s settings) (string, error) {
 	var max int
 	switch item.Kind() {
 	case reflect.Array:
@@ -229,7 +230,7 @@ func getSequence(item *reflect.Value, sep, layout string) (string, error) {
 			elem = elem.Elem()
 		}
 
-		v, err := toStr(elem, layout)
+		v, err := toStr(elem, layout, s)
 		if err != nil {
 			return "", err
 		}
@@ -240,7 +241,13 @@ func getSequence(item *reflect.Value, sep, layout string) (string, error) {
 }
 
 // The toStr converts any item to string.
-func toStr(item reflect.Value, layout string) (string, error) {
+func toStr(item reflect.Value, layout string, s settings) (string, error) {
+	// A custom encoder (WithEncoder) wins over the built-in handling for its
+	// type. This also covers slice/array elements.
+	if e := s.encoders[item.Type()]; e != nil {
+		return e(item)
+	}
+
 	// time.Duration and time.Time are formatted by type, before the generic
 	// kind handling (Duration's kind is int64, Time's kind is struct).
 	switch item.Type() {
