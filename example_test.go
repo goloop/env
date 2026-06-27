@@ -177,3 +177,94 @@ func ExampleUnmarshal_time() {
 	// 1h30m0s
 	// 2026-06-25
 }
+
+// WithParser registers a decoder for a type that does not implement
+// encoding.TextUnmarshaler. It applies to the type and to slices, arrays and
+// pointers of it (WithEncoder is the encode counterpart).
+func ExampleWithParser() {
+	type Point struct{ X, Y int }
+	parse := func(s string) (Point, error) {
+		var p Point
+		_, err := fmt.Sscanf(s, "%d,%d", &p.X, &p.Y)
+		return p, err
+	}
+
+	type Config struct {
+		Origin Point `env:"ORIGIN"`
+	}
+
+	var c Config
+	if err := env.UnmarshalMap(map[string]string{"ORIGIN": "3,4"}, &c, env.WithParser(parse)); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(c.Origin.X, c.Origin.Y)
+	// Output: 3 4
+}
+
+// MarshalString encodes a struct into a string of KEY=value lines (and pairs
+// with UnmarshalString).
+func ExampleMarshalString() {
+	type Config struct {
+		Host string `env:"HOST"`
+		Port int    `env:"PORT"`
+	}
+
+	s, err := env.MarshalString(Config{Host: "localhost", Port: 8080})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Print(s)
+	// Output:
+	// HOST=localhost
+	// PORT=8080
+}
+
+// The Raw variants read and write values verbatim, without ${VAR}/$VAR
+// expansion, so any value (here a literal $HOME) round-trips byte-for-byte.
+func ExampleMarshalStringRaw() {
+	type Config struct {
+		Template string `env:"TEMPLATE"`
+	}
+
+	s, _ := env.MarshalStringRaw(Config{Template: "$HOME/app"})
+
+	var c Config
+	if err := env.UnmarshalStringRaw(s, &c); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(c.Template)
+	// Output: $HOME/app
+}
+
+// WithRequiredAll makes every field mandatory, as if each carried ",required".
+func ExampleWithRequiredAll() {
+	type Config struct {
+		Host string `env:"HOST"`
+		Port int    `env:"PORT"`
+	}
+
+	var c Config
+	err := env.UnmarshalMap(map[string]string{"HOST": "localhost"}, &c, env.WithRequiredAll())
+	fmt.Println(err)
+	// Output: env: required key is not set: PORT
+}
+
+// Decoding follows encoding/json presence rules: an absent key leaves the field
+// untouched (so an in-code default survives), while a def tag fills an absent key.
+func ExampleUnmarshal_defaults() {
+	type Config struct {
+		Host string `env:"HOST"`
+		Port int    `env:"PORT" def:"8080"`
+	}
+
+	c := Config{Host: "preset"} // HOST is absent below, so it keeps this value
+	if err := env.UnmarshalMap(map[string]string{}, &c); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(c.Host, c.Port)
+	// Output: preset 8080
+}
