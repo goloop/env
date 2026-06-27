@@ -135,6 +135,16 @@ Several long-standing bugs are fixed. See the
 
 ### Migration from v1
 
+First, update the import path (v2 uses semantic import versioning):
+
+    go get github.com/goloop/env/v2
+
+```go
+import "github.com/goloop/env/v2" // was "github.com/goloop/env"
+```
+
+Then adjust the calls:
+
 | v1 | v2 |
 |----|----|
 | `Load(file)` | `Load(files...)` — same defaults, now variadic |
