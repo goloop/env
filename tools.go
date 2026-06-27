@@ -24,8 +24,8 @@ func isEmpty(str string) bool {
 	//  - if the first character is a separator, check the string with
 	//    using a regular expression.
 
-	// Get first rune from string.
-	firstRune := []rune(str)[0]
+	// Get first rune from string (without allocating a []rune).
+	firstRune, _ := utf8.DecodeRuneInString(str)
 
 	// If first character is a comment - string is empty.
 	if firstRune == '#' {

@@ -156,6 +156,10 @@ func TestSequenceRoundTrip(t *testing.T) {
 		{"a,b,c", "d"},
 		{"plain"},
 		{"x", "y,z", "w"},
+		{`x"y`, "z"},  // element contains a quote
+		{"(a", "b)"},  // elements contain brackets
+		{`a,"b`, "c"}, // element contains both the separator and a quote
+		{"", "x"},     // empty leading element
 	}
 	for _, want := range cases {
 		// Map round-trip.

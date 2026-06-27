@@ -3,7 +3,6 @@ package env
 import (
 	"encoding"
 	"fmt"
-	"math"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -463,128 +462,79 @@ func setValue(item reflect.Value, value, layout string, s settings) error {
 // The strToIntKind converts string to int64 type with out-of-range checking
 // for int. Returns 0 if value is empty.
 func strToIntKind(value string, kind reflect.Kind) (int64, error) {
-	var min, max int64
-
 	// For empty string returns zero.
 	if len(value) == 0 {
 		return 0, nil
 	}
 
-	// Convert string to int64.
-	r, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	// Out of range checking.
+	// strconv.ParseInt performs the out-of-range check for the bit size.
+	bitSize := 64
 	switch kind {
 	case reflect.Int:
-		if strconv.IntSize == 32 {
-			min, max = math.MinInt32, math.MaxInt32
-		} else {
-			min, max = math.MinInt64, math.MaxInt64
-		}
-		if r < min || r > max {
-			s := strconv.IntSize
-			return 0, fmt.Errorf("%d is out of range for int (%d-bit)", r, s)
-		}
+		bitSize = strconv.IntSize
 	case reflect.Int8:
-		min, max = math.MinInt8, math.MaxInt8
+		bitSize = 8
 	case reflect.Int16:
-		min, max = math.MinInt16, math.MaxInt16
+		bitSize = 16
 	case reflect.Int32:
-		min, max = math.MinInt32, math.MaxInt32
+		bitSize = 32
 	case reflect.Int64:
-		min, max = math.MinInt64, math.MaxInt64
+		bitSize = 64
 	default:
 		return 0, fmt.Errorf("incorrect kind %v", kind)
 	}
 
-	if kind != reflect.Int && (r < min || r > max) {
-		return 0, fmt.Errorf("%d is out of range for %v", r, kind)
-	}
-
-	return r, nil
+	return strconv.ParseInt(value, 10, bitSize)
 }
 
-// The strToUintKind convert string to uint64 type with out-of-range checking
+// The strToUintKind converts string to uint64 type with out-of-range checking
 // for uint. Returns 0 if value is empty.
 func strToUintKind(value string, kind reflect.Kind) (uint64, error) {
-	var max uint64
-
 	// For empty string returns zero.
 	if len(value) == 0 {
 		return 0, nil
 	}
 
-	// Convert string to uint64.
-	r, err := strconv.ParseUint(value, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	// Out of range checking.
+	// strconv.ParseUint performs the out-of-range check for the bit size.
+	bitSize := 64
 	switch kind {
 	case reflect.Uint:
-		if strconv.IntSize == 32 {
-			max = math.MaxUint32
-		} else {
-			max = math.MaxUint64
-		}
-		if r > max {
-			s := strconv.IntSize
-			return 0, fmt.Errorf("%d is out of range for uint (%d-bit)", r, s)
-		}
+		bitSize = strconv.IntSize
 	case reflect.Uint8:
-		max = math.MaxUint8
+		bitSize = 8
 	case reflect.Uint16:
-		max = math.MaxUint16
+		bitSize = 16
 	case reflect.Uint32:
-		max = math.MaxUint32
+		bitSize = 32
 	case reflect.Uint64:
-		max = math.MaxUint64
+		bitSize = 64
 	default:
 		return 0, fmt.Errorf("incorrect kind %v", kind)
 	}
 
-	if kind != reflect.Uint && r > max {
-		return 0, fmt.Errorf("%d is out of range for %v", r, kind)
-	}
-
-	return r, nil
+	return strconv.ParseUint(value, 10, bitSize)
 }
 
 // The strToFloatKind converts a string to float64 with out-of-range
 // checking for float. Returns 0 if value is empty.
 func strToFloatKind(value string, kind reflect.Kind) (float64, error) {
-	var min, max float64
-
 	// For empty string returns zero.
 	if len(value) == 0 {
 		return 0.0, nil
 	}
 
-	// Convert string to Float64.
-	r, err := strconv.ParseFloat(value, 64)
-	if err != nil {
-		return 0.0, err
-	}
-
-	// Out of range checking.
+	// strconv.ParseFloat performs the out-of-range check for the bit size.
+	bitSize := 64
 	switch kind {
 	case reflect.Float32:
-		min, max = -math.MaxFloat32, math.MaxFloat32
+		bitSize = 32
 	case reflect.Float64:
-		min, max = -math.MaxFloat64, math.MaxFloat64
+		bitSize = 64
 	default:
 		return 0.0, fmt.Errorf("incorrect kind %v", kind)
 	}
 
-	if r < min || r > max {
-		return 0.0, fmt.Errorf("%f is out of range for %v", r, kind)
-	}
-
-	return r, nil
+	return strconv.ParseFloat(value, bitSize)
 }
 
 // The strToBool convert string to bool type.
