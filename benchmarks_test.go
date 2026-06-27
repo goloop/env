@@ -3,168 +3,200 @@ package env
 import (
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 )
 
-// Test structures
-type testNestedConfig struct {
+// benchNested is the nested block of benchConfig.
+type benchNested struct {
 	Label string `env:"LABEL"`
 	Value int    `env:"VALUE"`
 }
 
-type testConfig struct {
-	Host         string           `env:"HOST" def:"localhost"`
-	Port         int              `env:"PORT" def:"8080"`
-	IPs          []string         `env:"ALLOWED_IPS" sep:","`
-	IsProduction bool             `env:"IS_PROD"`
-	API          url.URL          `env:"API_URL"`
-	Nested       testNestedConfig `env:"NESTED"`
+// benchConfig is a small but representative configuration: scalars, a list, a
+// url.URL, a nested struct and defaults.
+type benchConfig struct {
+	Host   string      `env:"HOST" def:"localhost"`
+	Port   int         `env:"PORT" def:"8080"`
+	Debug  bool        `env:"DEBUG"`
+	Hosts  []string    `env:"HOSTS" sep:","`
+	API    url.URL     `env:"API_URL"`
+	Nested benchNested `env:"NESTED"`
 }
 
-// Benchmark environment variable operations
+// benchEnvFile is the .env payload used by the parse/load benchmarks.
+const benchEnvFile = `HOST=localhost
+PORT=8080
+DEBUG=true
+HOSTS=127.0.0.1,192.168.1.1,10.0.0.1
+API_URL=https://api.example.com/v1
+NESTED_LABEL=worker
+NESTED_VALUE=42
+`
+
+// benchSource mirrors benchEnvFile as a decoded map.
+func benchSource() map[string]string {
+	return map[string]string{
+		"HOST":         "localhost",
+		"PORT":         "8080",
+		"DEBUG":        "true",
+		"HOSTS":        "127.0.0.1,192.168.1.1,10.0.0.1",
+		"API_URL":      "https://api.example.com/v1",
+		"NESTED_LABEL": "worker",
+		"NESTED_VALUE": "42",
+	}
+}
+
+func benchValue() benchConfig {
+	return benchConfig{
+		Host:   "localhost",
+		Port:   8080,
+		Debug:  true,
+		Hosts:  []string{"127.0.0.1", "192.168.1.1", "10.0.0.1"},
+		Nested: benchNested{Label: "worker", Value: 42},
+	}
+}
+
+// ─── Environment helpers ─────────────────────────────────────────────────────
+
 func BenchmarkSet(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		Set("TEST_KEY", "test_value")
+	b.ReportAllocs()
+	for b.Loop() {
+		Set("BENCH_KEY", "value")
 	}
 }
 
 func BenchmarkGet(b *testing.B) {
-	Set("BENCH_KEY", "bench_value")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	Set("BENCH_KEY", "value")
+	b.ReportAllocs()
+	for b.Loop() {
 		Get("BENCH_KEY")
 	}
 }
 
 func BenchmarkLookup(b *testing.B) {
-	Set("LOOKUP_KEY", "lookup_value")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		Lookup("LOOKUP_KEY")
+	Set("BENCH_KEY", "value")
+	b.ReportAllocs()
+	for b.Loop() {
+		Lookup("BENCH_KEY")
 	}
 }
 
-// Benchmark string parsing
+// ─── Parsing ─────────────────────────────────────────────────────────────────
+
 func BenchmarkSplitN(b *testing.B) {
-	str := "value1,value2,value3,value4,value5"
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		splitN(str, ",", -1)
+	const s = "value1,value2,value3,value4,value5"
+	b.ReportAllocs()
+	for b.Loop() {
+		splitN(s, ",", -1)
 	}
 }
 
-// Benchmark struct operations
-func BenchmarkMarshalSimple(b *testing.B) {
-	config := testConfig{
-		Host: "localhost",
-		Port: 8080,
-		IPs:  []string{"127.0.0.1", "192.168.1.1"},
-	}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		Marshal(config, WithPrefix("TEST_"))
+func BenchmarkParse(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		Parse(strings.NewReader(benchEnvFile))
 	}
 }
 
-func BenchmarkUnmarshalSimple(b *testing.B) {
-	Set("TEST_HOST", "localhost")
-	Set("TEST_PORT", "8080")
-	Set("TEST_ALLOWED_IPS", "127.0.0.1,192.168.1.1")
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		var config testConfig
-		Unmarshal(&config, WithPrefix("TEST_"))
-	}
-}
-
-// Benchmark file operations
-func BenchmarkLoadEnvFile(b *testing.B) {
-	// Create temporary .env file for testing
-	content := `
-HOST=localhost
-PORT=8080
-ALLOWED_IPS=127.0.0.1,192.168.1.1
-IS_PROD=true
-API_URL=https://api.example.com
-NESTED_LABEL=Test
-NESTED_VALUE=42
-`
-	tmpfile := b.TempDir() + "/.env"
-	if err := os.WriteFile(tmpfile, []byte(content), 0o644); err != nil {
+func BenchmarkLoadFile(b *testing.B) {
+	path := b.TempDir() + "/.env"
+	if err := os.WriteFile(path, []byte(benchEnvFile), 0o644); err != nil {
 		b.Fatal(err)
 	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		Load(tmpfile)
+	b.ReportAllocs()
+	for b.Loop() {
+		Load(path)
 	}
 }
 
-// BenchmarkUnmarshalConcurrent checks that Unmarshal stays fast under
-// concurrent callers. The decoder is sequential and has no shared mutable
-// state, so concurrent reads do not contend.
-func BenchmarkUnmarshalConcurrent(b *testing.B) {
-	Set("TEST_HOST", "localhost")
-	Set("TEST_PORT", "8080")
-	Set("TEST_ALLOWED_IPS", "127.0.0.1,192.168.1.1")
+// ─── Decoding (map → struct) ─────────────────────────────────────────────────
 
+func BenchmarkUnmarshal(b *testing.B) {
+	m := benchSource()
+	b.ReportAllocs()
+	for b.Loop() {
+		var c benchConfig
+		UnmarshalMap(m, &c)
+	}
+}
+
+func BenchmarkUnmarshalConcurrent(b *testing.B) {
+	m := benchSource()
+	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			var config testConfig
-			Unmarshal(&config, WithPrefix("TEST_"))
+			var c benchConfig
+			UnmarshalMap(m, &c)
 		}
 	})
 }
 
-// Benchmark URL parsing
-func BenchmarkURLParsing(b *testing.B) {
-	Set("API_URL", "https://api.example.com/v1")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		var config testConfig
-		Unmarshal(&config)
+func BenchmarkDecodeScalar(b *testing.B) {
+	cases := []struct{ name, value string }{
+		{"int", "12345"},
+		{"float", "123.45"},
+		{"bool", "true"},
+		{"string", "value"},
 	}
-}
-
-// BenchmarkTypeConversion measures decoding a single typed field from a map
-// (no environment snapshot), one sub-benchmark per scalar kind.
-func BenchmarkTypeConversion(b *testing.B) {
-	tests := map[string]string{
-		"INT":    "12345",
-		"FLOAT":  "123.45",
-		"BOOL":   "true",
-		"STRING": "test_value",
-	}
-
-	for typ, val := range tests {
-		b.Run(typ, func(b *testing.B) {
-			m := map[string]string{"V": val}
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				switch typ {
-				case "INT":
-					var c struct {
+	for _, c := range cases {
+		b.Run(c.name, func(b *testing.B) {
+			m := map[string]string{"V": c.value}
+			b.ReportAllocs()
+			for b.Loop() {
+				switch c.name {
+				case "int":
+					var v struct {
 						V int `env:"V"`
 					}
-					UnmarshalMap(m, &c)
-				case "FLOAT":
-					var c struct {
+					UnmarshalMap(m, &v)
+				case "float":
+					var v struct {
 						V float64 `env:"V"`
 					}
-					UnmarshalMap(m, &c)
-				case "BOOL":
-					var c struct {
+					UnmarshalMap(m, &v)
+				case "bool":
+					var v struct {
 						V bool `env:"V"`
 					}
-					UnmarshalMap(m, &c)
-				case "STRING":
-					var c struct {
+					UnmarshalMap(m, &v)
+				case "string":
+					var v struct {
 						V string `env:"V"`
 					}
-					UnmarshalMap(m, &c)
+					UnmarshalMap(m, &v)
 				}
 			}
 		})
+	}
+}
+
+// ─── Encoding (struct → map / string) ────────────────────────────────────────
+
+func BenchmarkMarshal(b *testing.B) {
+	c := benchValue()
+	b.ReportAllocs()
+	for b.Loop() {
+		MarshalMap(c)
+	}
+}
+
+func BenchmarkMarshalString(b *testing.B) {
+	c := benchValue()
+	b.ReportAllocs()
+	for b.Loop() {
+		MarshalString(c)
+	}
+}
+
+// ─── Round-trip (struct → string → struct) ───────────────────────────────────
+
+func BenchmarkRoundTrip(b *testing.B) {
+	c := benchValue()
+	b.ReportAllocs()
+	for b.Loop() {
+		s, _ := MarshalString(c)
+		var back benchConfig
+		UnmarshalString(s, &back)
 	}
 }
