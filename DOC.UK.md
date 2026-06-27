@@ -145,6 +145,7 @@ func Unmarshal(v any, opts ...Option) error                          // з os.En
 func UnmarshalMap(m map[string]string, v any, opts ...Option) error  // з map
 func UnmarshalFile(filename string, v any, opts ...Option) error     // з файлу
 func UnmarshalReader(r io.Reader, v any, opts ...Option) error        // з reader
+func UnmarshalString(s string, v any, opts ...Option) error           // з рядка
 ```
 
 `v` має бути ненульовим вказівником на структуру. Поля зіставляються за тегом
@@ -213,6 +214,19 @@ _ = env.UnmarshalFile(".env", &c)
 Тож `MarshalFile`/`MarshalWriter` round-trip-ляться через
 `UnmarshalFile`/`UnmarshalReader`.
 
+### Raw-варіанти
+
+У кожної File/Reader/Writer/String-функції є `…Raw`-варіант (`UnmarshalFileRaw`,
+`MarshalStringRaw`, …), що **пропускає** розгортання `${VAR}`/`$VAR`. Значення
+читаються й пишуться дослівно, тож round-trip-иться **будь-яке** значення —
+включно з рідкісним поєднанням `$` з одинарною лапкою **і** бектиком, яке
+expand-варіанти представити не можуть.
+
+```go
+s, _ := env.MarshalStringRaw(cfg)   // $-значення як є
+_ = env.UnmarshalStringRaw(s, &cfg) // без розгортання при читанні
+```
+
 ## Кодування структури
 
 ```go
@@ -220,6 +234,7 @@ func Marshal(v any, opts ...Option) error                         // в os.Envir
 func MarshalMap(v any, opts ...Option) (map[string]string, error) // в map
 func MarshalFile(filename string, v any, opts ...Option) error    // у файл
 func MarshalWriter(w io.Writer, v any, opts ...Option) error      // у writer
+func MarshalString(v any, opts ...Option) (string, error)         // у рядок
 ```
 
 `Marshal` пише кожне поле в процесне оточення (з перезаписом). Варіанти `*Map`
@@ -494,6 +509,10 @@ type Unmarshaler interface {
 (оточення, map чи файл). `UnmarshalEnv` отримує вже зрезолвлену (розгорнуту)
 map джерела й заповнює значення сам — рефлексивна обробка тегів повністю
 пропускається.
+
+> Нюанс: `UnmarshalEnv` отримує **непрефіксовану** map джерела (ключі точно як у
+> джерелі), тоді як `WithPrefix` **застосовується** до ключів, що повертає
+> `MarshalEnv`. Кастомний `Unmarshaler` сам відповідає за пошук своїх ключів.
 
 ```go
 type Config struct {

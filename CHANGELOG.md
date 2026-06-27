@@ -49,6 +49,12 @@ Several long-standing bugs are fixed. See the
 - `ReadSeq(files…) (iter.Seq2, error)` is the error-aware counterpart of `All`,
   and the `WithRequiredAll()` option makes every leaf field required during
   decoding (nested structs excluded).
+- `MarshalString`/`UnmarshalString` are in-memory string counterparts of
+  `MarshalFile`/`UnmarshalFile`.
+- `Raw` codec variants — `UnmarshalFileRaw`/`UnmarshalReaderRaw`/
+  `UnmarshalStringRaw` and `MarshalFileRaw`/`MarshalWriterRaw`/`MarshalStringRaw`
+  — skip `${VAR}`/`$VAR` expansion, so any value (including `$` together with
+  single quotes and backticks) round-trips verbatim.
 - Full reference documentation: `DOC.md` (English) and `DOC.UK.md` (Ukrainian),
   plus runnable `Example` functions.
 
@@ -122,6 +128,10 @@ Several long-standing bugs are fixed. See the
 - A value containing `$` written to a file or `io.Writer` is single-quoted so
   it is not expanded as `${VAR}`/`$VAR` when read back by `UnmarshalFile`/
   `UnmarshalReader`.
+- `MarshalWriter` now reports a short write (via `io.Copy`) instead of silently
+  dropping part of the output.
+- A slice with a single empty element (`[]string{""}`) is distinguished from an
+  empty slice (`[]string{}`) on round-trip — the former is written as `""`.
 
 ### Migration from v1
 

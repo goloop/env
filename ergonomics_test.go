@@ -175,3 +175,27 @@ func TestMarshalFileLiteralDollar(t *testing.T) {
 		t.Errorf("literal $ round-trip: got %+v, want %+v", back, in)
 	}
 }
+
+// TestMarshalStringRoundTrip checks the in-memory string round-trip.
+func TestMarshalStringRoundTrip(t *testing.T) {
+	type cfg struct {
+		Host string   `env:"HOST"`
+		Port int      `env:"PORT"`
+		Tags []string `env:"TAGS" sep:","`
+		Note string   `env:"NOTE"`
+	}
+	in := cfg{Host: "localhost", Port: 8080, Tags: []string{"a,b", "c"}, Note: "x $Y # z"}
+
+	s, err := env.MarshalString(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out cfg
+	if err := env.UnmarshalString(s, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Host != in.Host || out.Port != in.Port ||
+		len(out.Tags) != 2 || out.Tags[0] != "a,b" || out.Note != in.Note {
+		t.Errorf("round-trip: got %+v, want %+v (wire %q)", out, in, s)
+	}
+}

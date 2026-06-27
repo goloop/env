@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -231,5 +232,122 @@ func TestWithRequiredAll(t *testing.T) {
 	var n2 cfgNested
 	if err := env.UnmarshalMap(map[string]string{"HOST": "x", "IN_A": "5"}, &n2, env.WithRequiredAll()); err != nil {
 		t.Errorf("nested all present: %v", err)
+	}
+}
+
+// TestKeyParsing exercises the manual key parser: an export prefix with leading
+// whitespace, "export" as a literal key, and a line without '='.
+func TestKeyParsing(t *testing.T) {
+	type cfg struct {
+		Foo string `env:"FOO"`
+	}
+	var a cfg
+	if err := env.UnmarshalString("  export FOO=bar\n", &a); err != nil || a.Foo != "bar" {
+		t.Errorf("export+whitespace: got %q err=%v", a.Foo, err)
+	}
+
+	m, err := env.Parse(strings.NewReader("export=x\n"))
+	if err != nil || m["export"] != "x" {
+		t.Errorf(`export= literal key: got %v err=%v`, m, err)
+	}
+
+	if _, err := env.Parse(strings.NewReader("NOEQUALS\n")); err == nil {
+		t.Error("line without '=': expected error")
+	}
+}
+
+// shortWriter writes at most 3 bytes and reports no error, to trigger the
+// short-write path.
+type shortWriter struct{}
+
+func (shortWriter) Write(p []byte) (int, error) {
+	if len(p) > 3 {
+		return 3, nil
+	}
+	return len(p), nil
+}
+
+// TestMarshalWriterShortWrite checks that a short write surfaces an error
+// instead of being silently truncated (BUG-01).
+func TestMarshalWriterShortWrite(t *testing.T) {
+	type cfg struct {
+		Host string `env:"HOST"`
+		Port int    `env:"PORT"`
+	}
+	if err := env.MarshalWriter(shortWriter{}, cfg{Host: "localhost", Port: 8080}); err == nil {
+		t.Error("short write: expected an error, got nil")
+	}
+}
+
+// TestEmptyElementRoundTrip checks that a single empty element is distinct from
+// an empty slice after a round-trip (BUG-04).
+func TestEmptyElementRoundTrip(t *testing.T) {
+	type cfg struct {
+		V []string `env:"V" sep:","`
+	}
+	for _, want := range [][]string{{}, {""}, {"", ""}, {"a", ""}} {
+		m, err := env.MarshalMap(cfg{V: want})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var back cfg
+		if err := env.UnmarshalMap(m, &back); err != nil {
+			t.Fatal(err)
+		}
+		if len(back.V) != len(want) {
+			t.Errorf("%#v -> wire %q -> %#v (len mismatch)", want, m["V"], back.V)
+		}
+	}
+}
+
+// TestRawCodec checks that the Raw variants round-trip values verbatim,
+// including the $+quote+backtick combination that the non-raw path cannot
+// represent (BUG-02).
+func TestRawCodec(t *testing.T) {
+	t.Setenv("HOME", "/home/real")
+	type cfg struct {
+		A string `env:"A"`
+		B string `env:"B"`
+		C string `env:"C"`
+	}
+	in := cfg{A: "it's `$5`", B: "$HOME/x", C: "a$b'c`d"}
+
+	// String.
+	s, err := env.MarshalStringRaw(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sOut cfg
+	if err := env.UnmarshalStringRaw(s, &sOut); err != nil {
+		t.Fatal(err)
+	}
+	if sOut != in {
+		t.Errorf("string raw: got %+v, want %+v (wire %q)", sOut, in, s)
+	}
+
+	// File.
+	path := t.TempDir() + "/raw.env"
+	if err := env.MarshalFileRaw(path, in); err != nil {
+		t.Fatal(err)
+	}
+	var fOut cfg
+	if err := env.UnmarshalFileRaw(path, &fOut); err != nil {
+		t.Fatal(err)
+	}
+	if fOut != in {
+		t.Errorf("file raw: got %+v, want %+v", fOut, in)
+	}
+
+	// Writer/Reader.
+	var buf bytes.Buffer
+	if err := env.MarshalWriterRaw(&buf, in); err != nil {
+		t.Fatal(err)
+	}
+	var wOut cfg
+	if err := env.UnmarshalReaderRaw(&buf, &wOut); err != nil {
+		t.Fatal(err)
+	}
+	if wOut != in {
+		t.Errorf("writer/reader raw: got %+v, want %+v", wOut, in)
 	}
 }

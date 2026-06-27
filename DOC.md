@@ -146,6 +146,7 @@ func Unmarshal(v any, opts ...Option) error                          // from os.
 func UnmarshalMap(m map[string]string, v any, opts ...Option) error  // from a map
 func UnmarshalFile(filename string, v any, opts ...Option) error     // from a file
 func UnmarshalReader(r io.Reader, v any, opts ...Option) error        // from a reader
+func UnmarshalString(s string, v any, opts ...Option) error           // from a string
 ```
 
 `v` must be a non-nil pointer to a struct. Fields are matched by the `env` tag
@@ -217,6 +218,19 @@ inline-comment `#` are escaped, and a value containing `$` is written in single
 quotes so it is not expanded on read. So `MarshalFile`/`MarshalWriter` round-trip
 through `UnmarshalFile`/`UnmarshalReader`.
 
+### Raw variants
+
+Each File/Reader/Writer/String function has a `…Raw` variant
+(`UnmarshalFileRaw`, `MarshalStringRaw`, …) that skips `${VAR}`/`$VAR`
+expansion. Values are read and written verbatim, so **any** value round-trips —
+including the rare combination of `$` with both a single quote and a backtick,
+which the expanding variants cannot represent.
+
+```go
+s, _ := env.MarshalStringRaw(cfg)   // $-values written as-is
+_ = env.UnmarshalStringRaw(s, &cfg) // no expansion on read
+```
+
 ## Encoding a struct
 
 ```go
@@ -224,6 +238,7 @@ func Marshal(v any, opts ...Option) error                       // into os.Envir
 func MarshalMap(v any, opts ...Option) (map[string]string, error) // into a map
 func MarshalFile(filename string, v any, opts ...Option) error  // into a file
 func MarshalWriter(w io.Writer, v any, opts ...Option) error    // into a writer
+func MarshalString(v any, opts ...Option) (string, error)       // into a string
 ```
 
 `Marshal` writes each field into the process environment (overwriting). The
@@ -498,6 +513,10 @@ type Unmarshaler interface {
 (environment, map or file). `UnmarshalEnv` receives the already-resolved
 (expanded) source map and fills the value itself — the reflective tag handling
 is skipped entirely.
+
+> Note: `UnmarshalEnv` receives the **unprefixed** source map (keys exactly as
+> in the source), whereas `WithPrefix` **is** applied to the keys a `MarshalEnv`
+> returns. A custom `Unmarshaler` is responsible for its own key lookup.
 
 ```go
 type Config struct {

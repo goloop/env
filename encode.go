@@ -237,6 +237,13 @@ func getSequence(item *reflect.Value, sep, layout string, s settings) (string, e
 		sb.WriteString(quoteElement(v, sep))
 	}
 
+	// A slice with a single element that encodes to nothing (an empty string or
+	// a nil pointer) would collapse to an empty slice on decode (splitN("")
+	// yields no elements). Emit a quoted empty so it round-trips to one element.
+	if item.Kind() == reflect.Slice && max == 1 && sb.Len() == 0 {
+		return `""`, nil
+	}
+
 	return sb.String(), nil
 }
 
@@ -338,15 +345,16 @@ func toStr(item reflect.Value, layout string, s settings) (string, error) {
 // (a newline, leading/trailing whitespace, an inline-comment "#", or a leading
 // quote) is wrapped in double quotes with the escapes the parser understands
 // (\n, \t, \r, \\, \"). Plain values are returned unchanged.
-func quoteEnvValue(value string) string {
-	if !needsQuoting(value) {
+func quoteEnvValue(value string, raw bool) string {
+	if !needsQuoting(value, raw) {
 		return value
 	}
 
 	// A value containing '$' must be written non-expandably: the reader expands
 	// ${VAR}/$VAR in unquoted and double-quoted values, but not in single-quoted
 	// or backtick-quoted ones. Pick a quote the value does not itself contain.
-	if strings.ContainsRune(value, '$') {
+	// In raw mode the reader does not expand, so this is skipped.
+	if !raw && strings.ContainsRune(value, '$') {
 		if !strings.ContainsRune(value, '\'') {
 			return "'" + value + "'"
 		}
@@ -382,8 +390,9 @@ func quoteEnvValue(value string) string {
 }
 
 // The needsQuoting reports whether value must be quoted to survive a round-trip
-// as an unquoted .env value.
-func needsQuoting(value string) bool {
+// as an unquoted .env value. In raw mode a bare '$' is not a concern (the reader
+// does not expand it).
+func needsQuoting(value string, raw bool) bool {
 	if value == "" {
 		return false // KEY= is a valid empty value
 	}
@@ -404,7 +413,9 @@ func needsQuoting(value string) bool {
 		case '\n', '\r':
 			return true
 		case '$':
-			return true // would be expanded as ${VAR}/$VAR on read
+			if !raw {
+				return true // would be expanded as ${VAR}/$VAR on read
+			}
 		case '#':
 			// A "#" preceded by whitespace would start an inline comment.
 			if i > 0 && (value[i-1] == ' ' || value[i-1] == '\t') {

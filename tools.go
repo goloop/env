@@ -37,8 +37,15 @@ func isEmpty(str string) bool {
 		return false
 	}
 
-	// A complex string to be tested using a regular expression.
-	return emptyLineRgx.MatchString(str)
+	// The first rune is whitespace: the line is blank, or whitespace followed
+	// by a comment. Stop at the first non-whitespace rune.
+	for _, r := range str {
+		if !unicode.IsSpace(r) {
+			return r == '#'
+		}
+	}
+
+	return true
 }
 
 // The readParseStore reads env-file, parses this one by the key and value,
@@ -283,65 +290,43 @@ func parse(r io.Reader, expand bool) (map[string]string, error) {
 //	splitN("'a,b',c,d", ',', -1)   // ["'a,b'", "c", "d"]
 //	splitN("a,\"b,c\",d", ',', -1) // ["a", "\"b,c\"", "d"]
 func splitN(str, sep string, n int) (r []string) {
-	var (
-		level int
-		host  rune
-
-		flips    = map[rune]rune{'}': '{', ']': '[', ')': '('}
-		quotes   = "\"'`"
-		brackets = "({["
-	)
-
 	if n == 0 {
 		return r
 	}
-	if n == 1 {
-		return []string{str}
+	if n == 1 || sep == "" {
+		return []string{str} // cannot split
 	}
 	if str == "" {
 		return r // an empty value yields no elements
 	}
-	if sep == "" {
-		return []string{str} // an empty separator cannot split
-	}
 
-	// The contains returns true if all items from the separators
-	// were found in the string and it's all the same.
-	contains := func(str string, separators ...rune) bool {
-		last := -1
-		for _, sep := range separators {
-			ir := strings.IndexRune(str, sep)
-			if ir < 0 || (last >= 0 && last != ir) {
-				return false
-			}
-			last = ir
-		}
-
-		return true
-	}
+	// host is the active quote or opening bracket (0 when not in a group).
+	var (
+		level int
+		host  rune
+	)
 
 	// Work on byte offsets of the original string: runes are decoded only to
 	// drive the grouping state machine, but segments are cut from the original
 	// bytes. This keeps valid UTF-8 correct, preserves invalid bytes verbatim
 	// and matches multi-byte separators exactly.
-	r = make([]string, 0, strings.Count(str, sep)+1)
+	r = make([]string, 0, 8)
 
 	segStart := 0
 	for i := 0; i < len(str); {
 		char, size := utf8.DecodeRuneInString(str[i:])
 
 		switch {
-		case level == 0 && contains(quotes+brackets, char):
-			host, level = char, level+1
-		case contains(quotes, host, char):
+		case level == 0 && (isQuoteByte(char) || isBracketByte(char)):
+			host, level = char, 1
+		case host == char && isQuoteByte(host):
 			// Inside double quotes a \" is escaped and does not close the
 			// group (single quotes and backticks have no escapes).
 			if host != '"' || !isEscapedByte(str, i) {
 				level, host = 0, 0
 			}
-		case contains(brackets, host, flips[char]):
-			level--
-			if level <= 0 {
+		case isBracketByte(host) && char == closingBracket(host):
+			if level--; level <= 0 {
 				level, host = 0, 0
 			}
 		case level == 0 && strings.HasPrefix(str[i:], sep):
@@ -361,6 +346,26 @@ func splitN(str, sep string, n int) (r []string) {
 	// The final segment (an empty trailing field when the string ends with
 	// the separator).
 	return append(r, str[segStart:])
+}
+
+// isQuoteByte reports whether c is a quote character splitN groups on.
+func isQuoteByte(c rune) bool { return c == '"' || c == '\'' || c == '`' }
+
+// isBracketByte reports whether c is an opening bracket splitN groups on.
+func isBracketByte(c rune) bool { return c == '(' || c == '[' || c == '{' }
+
+// closingBracket returns the bracket that closes the opening bracket open.
+func closingBracket(open rune) rune {
+	switch open {
+	case '(':
+		return ')'
+	case '[':
+		return ']'
+	case '{':
+		return '}'
+	}
+
+	return 0
 }
 
 // The expandEscapes interprets backslash escape sequences inside
@@ -454,6 +459,57 @@ func multilineQuote(line string) byte {
 	return 0
 }
 
+// The isKeyByte reports whether c is allowed in a key name: a letter or
+// underscore anywhere, a digit anywhere but the first position.
+func isKeyByte(c byte, first bool) bool {
+	if c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') {
+		return true
+	}
+	return !first && c >= '0' && c <= '9'
+}
+
+// The validKeyName reports whether key is a valid env key name
+// ([A-Za-z_][A-Za-z0-9_]*). It replaces a regular expression in the hot path.
+func validKeyName(key string) bool {
+	if key == "" {
+		return false
+	}
+	for i := 0; i < len(key); i++ {
+		if !isKeyByte(key[i], i == 0) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// The parseKey extracts the key name from "[ws][export ]KEY=..." and reports
+// whether it matched. It replaces a regular expression in the hot parse path.
+func parseKey(exp string) (string, bool) {
+	i := 0
+	for i < len(exp) && (exp[i] == ' ' || exp[i] == '\t') {
+		i++ // skip leading whitespace
+	}
+
+	// An optional "export" prefix is only consumed when followed by whitespace.
+	if strings.HasPrefix(exp[i:], "export") {
+		if j := i + len("export"); j < len(exp) && (exp[j] == ' ' || exp[j] == '\t') {
+			for i = j; i < len(exp) && (exp[i] == ' ' || exp[i] == '\t'); i++ {
+			}
+		}
+	}
+
+	start := i
+	for i < len(exp) && isKeyByte(exp[i], i == start) {
+		i++
+	}
+	if i == start || i >= len(exp) || exp[i] != '=' {
+		return "", false // no key, or not followed by '='
+	}
+
+	return exp[start:i], true
+}
+
 // The parseExpression function breaks an expression into a key and value,
 // ignoring comments and any spaces. The value must be an env-expression.
 //
@@ -462,15 +518,13 @@ func multilineQuote(line string) byte {
 // expansion applies (single quotes and backticks are literal).
 func parseExpression(exp string) (key, value string, quote rune, err error) {
 
-	// Get key name.
-	// Remove `export` prefix, `=` suffix and trim spaces.
-	tmp := keyRgx.FindStringSubmatch(exp)
-	if len(tmp) < 2 {
-		err = fmt.Errorf("missing variable name for: %s (`%v`)", exp, tmp)
+	// Get key name: an optional `export` prefix, then [A-Za-z_][A-Za-z0-9_]*.
+	k, ok := parseKey(exp)
+	if !ok {
+		err = fmt.Errorf("missing variable name for: %s", exp)
 		return
 	}
-
-	key = tmp[1]
+	key = k
 
 	// Get value of the key.
 	// Everything after the first `=` is the value. An empty value (`KEY=`)

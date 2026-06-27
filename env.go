@@ -5,7 +5,7 @@ import (
 	"io"
 	"iter"
 	"os"
-	"regexp"
+	"strings"
 )
 
 const (
@@ -36,21 +36,6 @@ const (
 	// The defValueIgnored is the value of the tagNameKey field that
 	// should be ignored during processing.
 	defValueIgnored = "-"
-)
-
-var (
-	// The validKeyRgx is a regular expression to validate the key name.
-	validKeyRgx = regexp.MustCompile(`^[A-Za-z_]{1}\w*$`)
-
-	// The emptyLineRgx is a regular expression to check if a string
-	// is empty (consists of characters that cannot be values).
-	emptyLineRgx = regexp.MustCompile(`^(\s*)$|^(\s*[#].*)$`)
-
-	// The keyRgx is a regular expression to check
-	// the string which can be a key.
-	keyRgx = regexp.MustCompile(
-		`^(?:\s*)?(?:export\s+)?(?P<key>[a-zA-Z_][a-zA-Z_0-9]*)=`,
-	)
 )
 
 // Load reads the given .env files into the process environment, keeping any
@@ -263,8 +248,64 @@ func MarshalWriter(w io.Writer, obj any, opts ...Option) error {
 		return err
 	}
 
-	_, err = w.Write(b)
+	// io.Copy reports a short write as io.ErrShortWrite, unlike a bare
+	// w.Write whose n < len(b) result could be silently dropped.
+	_, err = io.Copy(w, bytes.NewReader(b))
 	return err
+}
+
+// MarshalString encodes the struct obj into a string of KEY=value lines (the
+// in-memory counterpart of MarshalFile/MarshalWriter), without changing the
+// process environment. It pairs with UnmarshalString for round-tripping.
+func MarshalString(obj any, opts ...Option) (string, error) {
+	b, err := encodeLines(obj, newSettings(opts...))
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
+}
+
+// MarshalFileRaw is like MarshalFile but writes values verbatim: a value
+// containing $ is not given special quoting, since the matching Raw reader does
+// not expand ${VAR}/$VAR. Use the Raw pair when values must survive byte-for-
+// byte (including any combination of $, quotes and backticks).
+func MarshalFileRaw(filename string, obj any, opts ...Option) error {
+	st := newSettings(opts...)
+	st.raw = true
+	b, err := encodeLines(obj, st)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(filename, b, st.fileMode)
+}
+
+// MarshalWriterRaw is like MarshalWriter but writes values verbatim (no special
+// $ quoting); pair it with UnmarshalReaderRaw.
+func MarshalWriterRaw(w io.Writer, obj any, opts ...Option) error {
+	st := newSettings(opts...)
+	st.raw = true
+	b, err := encodeLines(obj, st)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(w, bytes.NewReader(b))
+	return err
+}
+
+// MarshalStringRaw is like MarshalString but writes values verbatim (no special
+// $ quoting); pair it with UnmarshalStringRaw.
+func MarshalStringRaw(obj any, opts ...Option) (string, error) {
+	st := newSettings(opts...)
+	st.raw = true
+	b, err := encodeLines(obj, st)
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
 }
 
 // The encodeLines encodes obj into the KEY=value text body, quoting values that
@@ -279,7 +320,7 @@ func encodeLines(obj any, st settings) ([]byte, error) {
 	for _, p := range pairs {
 		buf.WriteString(p.key)
 		buf.WriteByte('=')
-		buf.WriteString(quoteEnvValue(p.value))
+		buf.WriteString(quoteEnvValue(p.value, st.raw))
 		buf.WriteByte('\n')
 	}
 
@@ -403,6 +444,40 @@ func UnmarshalReader(r io.Reader, obj any, opts ...Option) error {
 	}
 
 	return decodeStruct(m, obj, newSettings(opts...))
+}
+
+// UnmarshalString decodes .env data held in a string into the struct pointed to
+// by obj, expanding ${VAR}/$VAR, without touching the process environment. It
+// is the in-memory counterpart of UnmarshalFile and pairs with MarshalString.
+func UnmarshalString(s string, obj any, opts ...Option) error {
+	return UnmarshalReader(strings.NewReader(s), obj, opts...)
+}
+
+// UnmarshalFileRaw is like UnmarshalFile but does not expand ${VAR}/$VAR:
+// values are decoded verbatim. It is the symmetric counterpart of
+// MarshalFileRaw.
+func UnmarshalFileRaw(filename string, obj any, opts ...Option) error {
+	m, err := readFiles([]string{filename}, false)
+	if err != nil {
+		return err
+	}
+
+	return decodeStruct(m, obj, newSettings(opts...))
+}
+
+// UnmarshalReaderRaw is like UnmarshalReader but does not expand ${VAR}/$VAR.
+func UnmarshalReaderRaw(r io.Reader, obj any, opts ...Option) error {
+	m, err := parse(r, false)
+	if err != nil {
+		return err
+	}
+
+	return decodeStruct(m, obj, newSettings(opts...))
+}
+
+// UnmarshalStringRaw is like UnmarshalString but does not expand ${VAR}/$VAR.
+func UnmarshalStringRaw(s string, obj any, opts ...Option) error {
+	return UnmarshalReaderRaw(strings.NewReader(s), obj, opts...)
 }
 
 // Marshal writes the fields of the struct obj into the process environment,

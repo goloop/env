@@ -14,7 +14,7 @@ type tagGroup struct {
 
 // The isValid method returns true if the key name is valid.
 func (tg tagGroup) isValid() bool {
-	return validKeyRgx.MatchString(tg.key)
+	return validKeyName(tg.key)
 }
 
 // The parseEnvTag splits the value of the env tag into the key name and the

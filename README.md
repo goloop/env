@@ -190,6 +190,12 @@ value.
 | `UnmarshalMap(m, v, opts...)`  | `MarshalMap(v, opts...)` → map |
 | `UnmarshalFile(name, v, opts...)` | `MarshalFile(name, v, opts...)` → file |
 | `UnmarshalReader(r, v, opts...)` | `MarshalWriter(w, v, opts...)` → `io.Writer` |
+| `UnmarshalString(s, v, opts...)` | `MarshalString(v, opts...)` → `string` |
+
+Each `UnmarshalFile`/`UnmarshalReader`/`UnmarshalString` and `MarshalFile`/
+`MarshalWriter`/`MarshalString` has a `…Raw` variant that skips `${VAR}`/`$VAR`
+expansion, so any value (including `$`, quotes and backticks) round-trips
+verbatim.
 
 **Options:** `WithPrefix(p)`, `WithSeparator(sep)`, `WithTimeLayout(layout)`,
 `WithFileMode(mode)` (for `MarshalFile`), `WithParser[T]`/`WithEncoder[T]` (custom

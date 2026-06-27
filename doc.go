@@ -5,8 +5,8 @@
 //  1. Loads .env files into the process environment (a small Load/Overload
 //     API: Load, Overload, LoadRaw, OverloadRaw, LoadReader, MustLoad).
 //  2. Maps the environment to and from Go structs (an encoding/json-style API:
-//     Unmarshal, Marshal and their Map/File/Reader/Writer variants) with struct
-//     tags, defaults, validation and rich type support.
+//     Unmarshal, Marshal and their Map/File/Reader/Writer/String variants) with
+//     struct tags, defaults, validation and rich type support.
 //  3. Parses .env data into plain maps without side effects (Read, Parse, All,
 //     ReadSeq).
 //
@@ -24,8 +24,8 @@
 // # Decoding into a struct
 //
 // Unmarshal reads the process environment into a struct; UnmarshalMap,
-// UnmarshalFile and UnmarshalReader read a map, a file or an io.Reader directly
-// without touching the environment.
+// UnmarshalFile, UnmarshalReader and UnmarshalString read a map, a file, an
+// io.Reader or a string directly without touching the environment.
 //
 //	type Config struct {
 //	    Host    string        `env:"HOST"`
@@ -41,9 +41,13 @@
 //
 // # Encoding a struct
 //
-// Marshal writes a struct into the environment; MarshalMap, MarshalFile and
-// MarshalWriter produce a map, a file or write to an io.Writer without changing
-// the environment.
+// Marshal writes a struct into the environment; MarshalMap, MarshalFile,
+// MarshalWriter and MarshalString produce a map, a file, an io.Writer or a
+// string without changing the environment.
+//
+// The File/Reader/Writer/String encode and decode functions each have a Raw
+// variant (e.g. UnmarshalFileRaw, MarshalStringRaw) that skips ${VAR}/$VAR
+// expansion, so any value round-trips verbatim.
 //
 // # Options
 //
