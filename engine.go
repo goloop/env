@@ -83,6 +83,7 @@ type settings struct {
 	separator  string
 	timeLayout string
 	fileMode   os.FileMode
+	requireAll bool // WithRequiredAll: every leaf field must be present
 
 	// Custom per-type parsers/encoders registered with WithParser/WithEncoder.
 	// Both maps are nil unless an option registers a type (a nil-map read is

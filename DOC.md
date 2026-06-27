@@ -124,8 +124,10 @@ m, _ = env.Parse(strings.NewReader("HOST=localhost\nPORT=8080\n"))
 `All(filenames ...string) iter.Seq2[string, string]` is a convenience iterator
 over a file's pairs, so you can range without building a map yourself.
 **Read or parse errors are silently ignored** — a missing or invalid file simply
-yields nothing, indistinguishable from an empty file. **Use `Read` (which
-returns an `error`) whenever you need to handle failures.**
+yields nothing, indistinguishable from an empty file. When you need to handle
+failures, use `Read` or `ReadSeq(filenames ...string) (iter.Seq2[string,
+string], error)` — the error-aware counterpart of `All` that returns an `error`
+before iteration.
 
 ```go
 for key, value := range env.All(".env") {
@@ -253,6 +255,7 @@ func WithTimeLayout(layout string) Option
 func WithFileMode(mode os.FileMode) Option
 func WithParser[T any](parse func(string) (T, error)) Option
 func WithEncoder[T any](encode func(T) (string, error)) Option
+func WithRequiredAll() Option
 ```
 
 ### WithPrefix
@@ -334,6 +337,17 @@ m, _ := env.MarshalMap(cfg, opts...)
 
 Registering only a parser is fine — encoding then falls back to the built-in
 handling; register both for a clean round-trip.
+
+### WithRequiredAll
+
+Makes every leaf field required during decoding, as if each carried the
+`,required` flag: decoding fails if any field is absent and has no `def`
+default. Nested structs are not themselves required (they are filled by their
+sub-keys). Use it for a strict, fail-fast configuration.
+
+```go
+err := env.Unmarshal(&cfg, env.WithRequiredAll())
+```
 
 ## Struct tags
 

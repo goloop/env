@@ -124,7 +124,9 @@ m, _ = env.Parse(strings.NewReader("HOST=localhost\nPORT=8080\n"))
 `All(filenames ...string) iter.Seq2[string, string]` — зручний ітератор пар
 файлу, щоб перебирати без побудови map. **Помилки читання/парсингу мовчки
 ігноруються** — відсутній чи битий файл просто нічого не видає, незрізниме від
-порожнього. **Якщо треба обробляти збої — бери `Read` (повертає `error`).**
+порожнього. Якщо треба обробляти збої — бери `Read` або
+`ReadSeq(filenames ...string) (iter.Seq2[string, string], error)` —
+error-aware відповідник `All`, що повертає `error` до ітерації.
 
 ```go
 for key, value := range env.All(".env") {
@@ -249,6 +251,7 @@ func WithTimeLayout(layout string) Option
 func WithFileMode(mode os.FileMode) Option
 func WithParser[T any](parse func(string) (T, error)) Option
 func WithEncoder[T any](encode func(T) (string, error)) Option
+func WithRequiredAll() Option
 ```
 
 ### WithPrefix
@@ -330,6 +333,17 @@ m, _ := env.MarshalMap(cfg, opts...)
 
 Можна зареєструвати лише парсер — тоді кодування впаде на вбудовану обробку;
 для чистого round-trip реєструй обидва.
+
+### WithRequiredAll
+
+Робить **кожне leaf-поле обов'язковим** при декодуванні, наче на кожному стоїть
+`,required`: декодування падає, якщо якесь поле відсутнє й не має `def`-дефолту.
+Вкладені структури самі по собі не обов'язкові (їх заповнюють під-ключі).
+Зручно для суворого fail-fast конфігу.
+
+```go
+err := env.Unmarshal(&cfg, env.WithRequiredAll())
+```
 
 ## Теги структур
 

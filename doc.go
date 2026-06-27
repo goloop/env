@@ -7,7 +7,8 @@
 //  2. Maps the environment to and from Go structs (an encoding/json-style API:
 //     Unmarshal, Marshal and their Map/File/Reader/Writer variants) with struct
 //     tags, defaults, validation and rich type support.
-//  3. Parses .env data into plain maps without side effects (Read, Parse, All).
+//  3. Parses .env data into plain maps without side effects (Read, Parse, All,
+//     ReadSeq).
 //
 // # Loading
 //
@@ -56,6 +57,7 @@
 //   - WithFileMode sets the file permissions used by MarshalFile.
 //   - WithParser/WithEncoder register a decoder/encoder for a custom type that
 //     does not implement encoding.TextUnmarshaler/TextMarshaler.
+//   - WithRequiredAll makes every leaf field required during decoding.
 //
 // # Struct tags
 //

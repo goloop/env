@@ -142,14 +142,17 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 		}
 		tg.present = ok
 
-		// A required field must be present in the source unless a default
-		// is provided.
-		if tg.required && !ok && fi.def == "" {
+		// A required field must be present in the source unless a default is
+		// provided. WithRequiredAll makes every leaf field required (nested
+		// structs are excluded - they are filled by their sub-keys).
+		item := e.Field(fi.index)
+		required := tg.required ||
+			(s.requireAll && !isNestedStruct(item.Type(), s))
+		if required && !ok && fi.def == "" {
 			return fmt.Errorf("%w: %s", ErrRequired, tg.key)
 		}
 
 		// Set value to field.
-		item := e.Field(fi.index)
 		if err := setFieldValue(source, &item, tg, s); err != nil {
 			return err
 		}
@@ -167,6 +170,7 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		timeLayout: s.timeLayout,
 		parsers:    s.parsers,
 		encoders:   s.encoders,
+		requireAll: s.requireAll,
 	}
 
 	// Absent key with no default: leave the field untouched, like

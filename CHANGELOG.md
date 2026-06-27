@@ -46,6 +46,9 @@ Several long-standing bugs are fixed. See the
   slices, arrays and pointers of it, and take precedence over the built-ins.
 - `MarshalWriter(w io.Writer, …)` and `UnmarshalReader(r io.Reader, …)` complete
   the reader/writer symmetry (counterparts of `LoadReader` and `UnmarshalFile`).
+- `ReadSeq(files…) (iter.Seq2, error)` is the error-aware counterpart of `All`,
+  and the `WithRequiredAll()` option makes every leaf field required during
+  decoding (nested structs excluded).
 - Full reference documentation: `DOC.md` (English) and `DOC.UK.md` (Ukrainian),
   plus runnable `Example` functions.
 

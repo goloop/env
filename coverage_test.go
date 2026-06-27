@@ -171,3 +171,65 @@ func TestSetValueTypes(t *testing.T) {
 		t.Error("invalid url: expected error")
 	}
 }
+
+// TestReadSeq checks the error-aware iterator over a file's pairs.
+func TestReadSeq(t *testing.T) {
+	seq, err := env.ReadSeq("./fixtures/simple.env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for k, v := range seq {
+		got[k] = v
+	}
+	if got["KEY_1"] != "value_1" {
+		t.Errorf("ReadSeq KEY_1 = %q, want value_1", got["KEY_1"])
+	}
+
+	if _, err := env.ReadSeq("/no/such/file.env"); err == nil {
+		t.Error("ReadSeq missing file: expected error")
+	}
+}
+
+// TestWithRequiredAll checks that every leaf field becomes required, that def
+// satisfies it, and that nested structs are excluded while their sub-fields are
+// required.
+func TestWithRequiredAll(t *testing.T) {
+	type cfg struct {
+		Host string `env:"HOST"`
+		Port int    `env:"PORT"`
+	}
+	var a cfg
+	if err := env.UnmarshalMap(map[string]string{"HOST": "x"}, &a, env.WithRequiredAll()); err == nil {
+		t.Error("missing field: expected error")
+	}
+	var b cfg
+	if err := env.UnmarshalMap(map[string]string{"HOST": "x", "PORT": "1"}, &b, env.WithRequiredAll()); err != nil {
+		t.Errorf("all present: %v", err)
+	}
+
+	type cfgDef struct {
+		Host string `env:"HOST"`
+		Port int    `env:"PORT" def:"8080"`
+	}
+	var d cfgDef
+	if err := env.UnmarshalMap(map[string]string{"HOST": "x"}, &d, env.WithRequiredAll()); err != nil {
+		t.Errorf("def should satisfy required: %v", err)
+	}
+
+	type inner struct {
+		A int `env:"A"`
+	}
+	type cfgNested struct {
+		Host string `env:"HOST"`
+		In   inner  `env:"IN"`
+	}
+	var n cfgNested
+	if err := env.UnmarshalMap(map[string]string{"HOST": "x"}, &n, env.WithRequiredAll()); err == nil {
+		t.Error("nested sub-field missing: expected error")
+	}
+	var n2 cfgNested
+	if err := env.UnmarshalMap(map[string]string{"HOST": "x", "IN_A": "5"}, &n2, env.WithRequiredAll()); err != nil {
+		t.Errorf("nested all present: %v", err)
+	}
+}

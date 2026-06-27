@@ -205,6 +205,33 @@ func All(filenames ...string) iter.Seq2[string, string] {
 	}
 }
 
+// ReadSeq is the error-aware counterpart of All: it reads the given .env files
+// (default ".env"), expanding ${VAR}/$VAR, and returns an iterator over their
+// key/value pairs, or an error if reading or parsing fails. Use it instead of
+// All when you need to handle failures.
+//
+//	seq, err := env.ReadSeq(".env")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	for key, value := range seq {
+//	    fmt.Println(key, value)
+//	}
+func ReadSeq(filenames ...string) (iter.Seq2[string, string], error) {
+	m, err := readFiles(filenames, true)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(yield func(string, string) bool) {
+		for key, value := range m {
+			if !yield(key, value) {
+				return
+			}
+		}
+	}, nil
+}
+
 // MarshalFile writes the struct obj into the file as KEY=value lines without
 // changing the process environment.
 //

@@ -180,6 +180,7 @@ value.
 | `Parse(r) (map, error)`        | yes |
 | `ParseRaw(r) (map, error)`     | no  |
 | `All(files...) iter.Seq2`      | yes (iterator) |
+| `ReadSeq(files...) (iter.Seq2, error)` | yes (iterator + error) |
 
 **Struct mapping:**
 
@@ -192,7 +193,7 @@ value.
 
 **Options:** `WithPrefix(p)`, `WithSeparator(sep)`, `WithTimeLayout(layout)`,
 `WithFileMode(mode)` (for `MarshalFile`), `WithParser[T]`/`WithEncoder[T]` (custom
-type handling).
+type handling), `WithRequiredAll()` (make every field required).
 
 **Environment helpers** (thin wrappers over `os`): `Get`, `Set`, `Unset`,
 `Clear`, `Environ`, `Expand`, `Lookup`, `Exists`.

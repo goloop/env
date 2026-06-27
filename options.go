@@ -38,6 +38,14 @@ func WithFileMode(mode os.FileMode) Option {
 	return func(s *settings) { s.fileMode = mode }
 }
 
+// WithRequiredAll makes every leaf field required during decoding, as if each
+// carried the ",required" flag: decoding fails if any field is absent from the
+// source and has no def default. Nested structs are not themselves required
+// (they are filled by their sub-keys). Use it for a strict, fail-fast config.
+func WithRequiredAll() Option {
+	return func(s *settings) { s.requireAll = true }
+}
+
 // WithParser registers a decoder for fields of type T (and elements of slices,
 // arrays and pointers of T). It is the escape hatch for third-party types that
 // do not implement encoding.TextUnmarshaler: the function turns the raw string
