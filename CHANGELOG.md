@@ -6,6 +6,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0]
+
+Parser correctness and decode fixes. One behaviour change is noted below.
+
+### Fixed
+- A quote inside an inline comment on a closed single-line value
+  (`KEY='abc' # don't`) no longer opens a multiline value and silently
+  swallows the following lines. Multiline detection now uses the same
+  escape-aware scan as the value parser.
+- `Load` and `Read` agree on a key repeated within one file: the last
+  occurrence wins for both, consistently with the de-facto `.env` behaviour.
+- `splitN` counts nested brackets of the same kind, so a value like
+  `{"a":{"b":1},"c":2},x` splits into the outer group and `x` instead of
+  breaking at the first inner `}`.
+- An empty nested struct (a field of type `struct{}` or `*struct{}`) no longer
+  fails `Unmarshal` with `ErrEmptyStruct`; it is skipped, matching `Marshal`.
+- A parser registered with `WithParser` for a pointer type (`*T`) is now
+  honoured for a pointer field, instead of the value being silently dropped.
+
+### Changed
+- **Behaviour:** unexpected text after a closing quote (`J="abc"def`) is now a
+  parse error rather than being silently discarded. Only whitespace and an
+  inline `#` comment may follow the closing quote.
+
 ## [2.0.0] - 2026-06-25
 
 Version 2.0.0 is a major rewrite. The API is reorganized around two familiar

@@ -237,6 +237,22 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 		// Replace the slice (like encoding/json), not append to it.
 		item.Set(tmp)
 	case reflect.Ptr:
+		// A custom parser registered for the pointer type itself (WithParser
+		// for *T) takes precedence and produces the pointer directly. Without
+		// this the pointer would fall through to the nested-struct branch and
+		// its value would be silently lost.
+		if fn := s.parsers[item.Type()]; fn != nil {
+			if !tg.present && tg.value == "" {
+				return nil // absent, no default: leave the field untouched
+			}
+			rv, err := fn(tg.value)
+			if err != nil {
+				return keyErr(err)
+			}
+			item.Set(rv)
+			break
+		}
+
 		// A nil pointer is "absent". The absent case is already handled by the
 		// guard above (leaf) or below (nested struct), so here we only allocate
 		// when there is something to assign.
@@ -250,6 +266,12 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 			if err := setValue(item.Elem(), tg.value, tg.layout, s); err != nil {
 				return keyErr(err)
 			}
+			break
+		}
+
+		// A pointer to an empty struct has nothing to decode (see the value
+		// struct case below); skip it rather than failing with ErrEmptyStruct.
+		if elemType.NumField() == 0 {
 			break
 		}
 
@@ -271,6 +293,13 @@ func setFieldValue(source map[string]string, item *reflect.Value, tg *tagGroup, 
 			if err := setValue(*item, tg.value, tg.layout, s); err != nil {
 				return keyErr(err)
 			}
+			break
+		}
+
+		// An empty nested struct (no fields) has nothing to decode; skip it
+		// instead of failing with ErrEmptyStruct, mirroring Marshal, which
+		// encodes such a struct to nothing.
+		if item.NumField() == 0 {
 			break
 		}
 

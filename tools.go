@@ -152,8 +152,23 @@ func readParseStore(filename string, expand, update, forced bool) error {
 	//	KEY_0=VALUE_0
 	//	KEY_1=${KEY_0}7   // -> VALUE_07
 	//	KEY_0=VALUE_1     // overrides KEY_0 afterwards
+	//
+	// A key that appears twice in the same file is resolved as last-wins,
+	// consistently with Read/parse and the de-facto .env behaviour. To do so
+	// we snapshot which keys pre-existed in the environment before this file:
+	// only those are protected in non-update mode, so a duplicate later in the
+	// same file still overrides its earlier occurrence.
+	preexisting := make(map[string]bool)
+	if !update {
+		for _, e := range entries {
+			if _, ok := os.LookupEnv(e.key); ok {
+				preexisting[e.key] = true
+			}
+		}
+	}
+
 	for _, e := range entries {
-		if _, ok := os.LookupEnv(e.key); update || !ok {
+		if update || !preexisting[e.key] {
 			value := e.value
 			if expand && e.expandable() && strings.Contains(value, "$") {
 				value = os.ExpandEnv(value)
@@ -206,7 +221,7 @@ func scanEntries(r io.Reader, forced bool) ([]rawEntry, error) {
 				cont := scanner.Text()
 				b.WriteByte('\n')
 				b.WriteString(cont)
-				if countUnescapedQuote(cont, q)%2 != 0 {
+				if valueClosed(b.String(), q) {
 					break // closing quote found
 				}
 			}
@@ -325,6 +340,10 @@ func splitN(str, sep string, n int) (r []string) {
 			if host != '"' || !isEscapedByte(str, i) {
 				level, host = 0, 0
 			}
+		case isBracketByte(host) && char == host:
+			// A nested opening bracket of the same kind ({...{...}...}) deepens
+			// the group, so the matching inner close does not end it early.
+			level++
 		case isBracketByte(host) && char == closingBracket(host):
 			if level--; level <= 0 {
 				level, host = 0, 0
@@ -406,26 +425,6 @@ func expandEscapes(s string) string {
 	return sb.String()
 }
 
-// The countUnescapedQuote counts occurrences of the quote byte q in s that
-// are not escaped by a preceding backslash (an even number of backslashes
-// before the quote means it is not escaped).
-func countUnescapedQuote(s string, q byte) int {
-	n := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == q {
-			bs := 0
-			for j := i - 1; j >= 0 && s[j] == '\\'; j-- {
-				bs++
-			}
-			if bs%2 == 0 {
-				n++
-			}
-		}
-	}
-
-	return n
-}
-
 // The multilineQuote reports the opening quote byte (", ' or `) when the
 // given line starts a quoted value whose quote is not closed on the same
 // line (i.e. the start of a multiline value). It returns 0 otherwise.
@@ -450,13 +449,30 @@ func multilineQuote(line string) byte {
 		return 0
 	}
 
-	// The opening quote is unterminated when the number of unescaped
-	// quotes on the line is odd.
-	if countUnescapedQuote(value, q)%2 != 0 {
-		return q
+	// The opening quote is unterminated only when there is no matching closing
+	// quote on this line, using the same escape-aware scan as parseQuoted. A
+	// bare quote-count would also count quotes in an inline comment
+	// (KEY='abc' # don't), falsely opening a multiline value and silently
+	// swallowing the following lines.
+	if _, _, ok := parseQuoted(value, q); ok {
+		return 0
 	}
 
-	return 0
+	return q
+}
+
+// The valueClosed reports whether the quoted value in line (the text after the
+// first '=') is terminated by a matching closing quote. It is used to end
+// multiline accumulation with the same escape-aware scan as parseQuoted, so a
+// quote inside a trailing inline comment does not fool the terminator check.
+func valueClosed(line string, quote byte) bool {
+	pos := strings.IndexByte(line, '=')
+	if pos == -1 {
+		return false
+	}
+	value := strings.TrimLeft(line[pos+1:], " \t")
+	_, _, ok := parseQuoted(value, quote)
+	return ok
 }
 
 // The isKeyByte reports whether c is allowed in a key name: a letter or
@@ -560,9 +576,18 @@ func parseExpression(exp string) (key, value string, quote rune, err error) {
 		// Extract the quoted content with a single escape-aware pass:
 		// find the matching closing quote (a backslash escapes the next
 		// character) and drop anything after it (an inline comment).
-		content, ok := parseQuoted(value, byte(quote))
+		content, rest, ok := parseQuoted(value, byte(quote))
 		if !ok {
 			err = fmt.Errorf("incorrect value: %s", value)
+			return
+		}
+
+		// After the closing quote only whitespace and an inline #comment are
+		// allowed. Any other trailing text is almost always a typo (a stray
+		// quote, a lost separator) and silently dropping it would hide the
+		// mistake, so it is reported instead.
+		if tail := strings.TrimLeft(rest, " \t"); tail != "" && tail[0] != '#' {
+			err = fmt.Errorf("unexpected text after closing quote: %s", value)
 			return
 		}
 
@@ -582,19 +607,19 @@ func parseExpression(exp string) (key, value string, quote rune, err error) {
 // The parseQuoted extracts the content of a quoted value. The string s must
 // start with the quote byte; the scan is escape-aware (a backslash escapes
 // the next character) and stops at the first unescaped closing quote.
-// It returns the content between the quotes and true, or false if there is
-// no matching closing quote.
-func parseQuoted(s string, quote byte) (string, bool) {
+// It returns the content between the quotes, the remaining text after the
+// closing quote and true, or false if there is no matching closing quote.
+func parseQuoted(s string, quote byte) (content, rest string, ok bool) {
 	for i := 1; i < len(s); i++ {
 		switch s[i] {
 		case '\\':
 			i++ // skip the escaped character
 		case quote:
-			return s[1:i], true
+			return s[1:i], s[i+1:], true
 		}
 	}
 
-	return "", false
+	return "", "", false
 }
 
 // The isEscapedByte reports whether the byte at index i is escaped, i.e.
