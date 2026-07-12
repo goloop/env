@@ -2,6 +2,7 @@ package env
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"iter"
 	"os"
@@ -47,35 +48,52 @@ const (
 //		log.Fatal(err)
 //	}
 func Load(filenames ...string) error {
-	return loadFiles(filenames, true, false)
+	return loadFiles(filenames, true, false, false)
 }
 
 // Overload is like Load but overwrites keys that already exist in the
 // environment.
 func Overload(filenames ...string) error {
-	return loadFiles(filenames, true, true)
+	return loadFiles(filenames, true, true, false)
 }
 
 // LoadRaw is like Load but does not expand ${VAR}/$VAR: values are stored
 // verbatim.
 func LoadRaw(filenames ...string) error {
-	return loadFiles(filenames, false, false)
+	return loadFiles(filenames, false, false, false)
 }
 
 // OverloadRaw is like Overload but does not expand ${VAR}/$VAR.
 func OverloadRaw(filenames ...string) error {
-	return loadFiles(filenames, false, true)
+	return loadFiles(filenames, false, true, false)
+}
+
+// LoadSafe is like Load but a file that does not exist is skipped instead of
+// returning an error. It is the load-if-present pattern: read the local .env in
+// development, and fall back to the real environment when the file is absent
+// (CI, production). Parse errors and other I/O errors are still returned.
+//
+//	// Never fails just because .env is missing.
+//	if err := env.LoadSafe(); err != nil {
+//		log.Fatal(err) // a real parse/I/O error, not a missing file
+//	}
+func LoadSafe(filenames ...string) error {
+	return loadFiles(filenames, true, false, true)
 }
 
 // loadFiles loads each file into the environment. An empty list defaults to
-// ".env".
-func loadFiles(filenames []string, expand, update bool) error {
+// ".env". When optional is set, a file that does not exist is skipped rather
+// than reported as an error.
+func loadFiles(filenames []string, expand, update, optional bool) error {
 	if len(filenames) == 0 {
 		filenames = []string{".env"}
 	}
 
 	for _, filename := range filenames {
 		if err := readParseStore(filename, expand, update, false); err != nil {
+			if optional && errors.Is(err, os.ErrNotExist) {
+				continue
+			}
 			return err
 		}
 	}

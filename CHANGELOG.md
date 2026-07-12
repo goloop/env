@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0]
+
+### Added
+- `LoadSafe` loads .env files like `Load` but skips a file that does not exist
+  instead of returning an error, while still reporting parse and other I/O
+  errors. It serves the load-if-present pattern (read `.env` in development,
+  fall back to the real environment in CI/production) without a manual
+  `os.Stat` guard at the call site.
+
 ## [2.5.0]
 
 Parser correctness and decode fixes. One behaviour change is noted below.

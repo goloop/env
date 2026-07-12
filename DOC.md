@@ -52,14 +52,24 @@ several files are given, the **first value set for a key wins**.
 | Function | Expansion | Existing keys |
 |----------|-----------|---------------|
 | `Load(filenames ...string) error`        | `${VAR}` expanded | kept |
+| `LoadSafe(filenames ...string) error`    | `${VAR}` expanded | kept (skips a missing file) |
 | `Overload(filenames ...string) error`    | `${VAR}` expanded | overwritten |
 | `LoadRaw(filenames ...string) error`     | literal | kept |
 | `OverloadRaw(filenames ...string) error` | literal | overwritten |
+
+`Load` fails if a named file is missing; `LoadSafe` skips a missing file (still
+reporting parse or other I/O errors), which is the load-if-present pattern:
+read `.env` in development, fall back to the real environment in CI/production.
 
 ```go
 // Load .env, keeping anything already set in the environment.
 if err := env.Load(".env"); err != nil {
 	log.Fatal(err)
+}
+
+// Load .env only if it is there; a missing file is not an error.
+if err := env.LoadSafe(); err != nil {
+	log.Fatal(err) // a real parse/I/O error, not a missing file
 }
 
 // Layer files: base first, then environment-specific overrides.

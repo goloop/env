@@ -161,3 +161,32 @@ func TestMarshalFile(t *testing.T) {
 		t.Errorf("expected `%d` but `%s`", data.Port, fmt.Sprint(data.Port))
 	}
 }
+
+// LoadSafe skips a missing file instead of erroring, but still reports a real
+// parse or I/O error.
+func TestLoadSafe(t *testing.T) {
+	// A missing file is not an error.
+	if err := LoadSafe("definitely-not-here.env"); err != nil {
+		t.Fatalf("LoadSafe(missing) = %v, want nil", err)
+	}
+
+	// A present file still loads.
+	dir := t.TempDir()
+	path := dir + "/app.env"
+	if err := os.WriteFile(path, []byte("VAULT_LOADSAFE_OK=yes\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	os.Unsetenv("VAULT_LOADSAFE_OK")
+	defer os.Unsetenv("VAULT_LOADSAFE_OK")
+	if err := LoadSafe(path); err != nil {
+		t.Fatalf("LoadSafe(present) = %v", err)
+	}
+	if got := os.Getenv("VAULT_LOADSAFE_OK"); got != "yes" {
+		t.Fatalf("value = %q, want yes", got)
+	}
+
+	// Plain Load still errors on a missing file (unchanged behavior).
+	if err := Load("definitely-not-here.env"); err == nil {
+		t.Fatal("Load(missing) should still error")
+	}
+}
