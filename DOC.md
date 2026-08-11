@@ -389,7 +389,7 @@ type Config struct {
 
 | Tag | Description |
 |-----|-------------|
-| `env` | The key name. `-` ignores the field entirely. Inline flags follow the name after a comma, e.g. `env:"KEY,required"`. |
+| `env` | The key name. `-` ignores the field entirely. Inline flags follow the name after a comma: `required`, `absolute` (e.g. `env:"KEY,required"`). |
 | `def` | Default value used when the key is absent from the source. |
 | `sep` | Separator for slice/array values (overrides `WithSeparator`). |
 | `layout` | Layout for `time.Time` (overrides `WithTimeLayout`). A Go layout or a constant name such as `RFC3339`, `RFC1123`, `DateTime`, `DateOnly`, `TimeOnly`, `Kitchen`, `ANSIC`, `UnixDate`, `Stamp`. |
@@ -411,6 +411,25 @@ errors.Is(err, env.ErrRequired) // true
 
 A `def` satisfies the requirement (the default is a deliberate handling of the
 missing case), so `required` together with `def` never errors.
+
+### absolute
+
+`env:"NAME,absolute"` makes the key name the environment variable in full,
+ignoring the prefix the enclosing structs would contribute - including one set
+with `WithPrefix`. Deployments fix some names once and for all, and grouping
+fields in Go should not rename them:
+
+```go
+type Config struct {
+	DB struct {
+		URL      string `env:"DATABASE_URL,absolute"` // reads DATABASE_URL
+		PoolSize int    `env:"POOL_SIZE"`             // reads DB_POOL_SIZE
+	} `env:"DB"`
+}
+```
+
+The whole prefix chain is dropped, not one level of it, and `Marshal` writes
+the same name `Unmarshal` reads. It composes with `required`.
 
 ### Ignoring a field
 
@@ -670,6 +689,33 @@ LITERAL='${USER}'             # -> ${USER}
 The `Raw`/`ParseRaw` variants disable expansion entirely.
 
 ## Recipes and tips
+
+### Validating what was decoded
+
+The canonical loader is three steps, and the third one is yours:
+
+```go
+func Load(files ...string) (*Config, error) {
+    _ = env.Load(files...)
+    var c Config
+    if err := env.Unmarshal(&c); err != nil {
+        return nil, err
+    }
+    if err := c.Validate(); err != nil { // cross-field rules live here
+        return nil, err
+    }
+    return &c, nil
+}
+```
+
+The `required` flag covers presence; rules spanning several fields - two
+secrets must differ, a limit must sit below a ceiling, a key must be long
+enough to sign with - cannot be a tag and belong in a `Validate` method the
+application writes and calls at startup, so a misconfiguration refuses to start
+instead of failing on the first request that needs the value. `Unmarshal`
+deliberately does not call such a method itself: forgetting to write it is as
+easy as forgetting to call it, and a decoder invoking application logic is a
+surprising thing to debug.
 
 **Fail fast on incomplete configuration.** Mark mandatory keys `required` and
 check the error once:
