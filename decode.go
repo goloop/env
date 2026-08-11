@@ -120,7 +120,7 @@ func decodeStruct(source map[string]string, obj any, s settings) error {
 		}
 
 		tg := &tagGroup{
-			key:      s.prefix + fi.name,
+			key:      fi.key(s.prefix),
 			value:    fi.def,
 			sep:      sep,
 			layout:   resolveLayout(layout),

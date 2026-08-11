@@ -20,14 +20,17 @@ func (tg tagGroup) isValid() bool {
 // The parseEnvTag splits the value of the env tag into the key name and the
 // inline flags. The first comma-separated item is the name; the rest are
 // flags (currently only "required").
-func parseEnvTag(tag string) (name string, required bool) {
+func parseEnvTag(tag string) (name string, required, absolute bool) {
 	parts := strings.Split(tag, ",")
 	name = strings.TrimSpace(parts[0])
 	for _, flag := range parts[1:] {
-		if strings.TrimSpace(flag) == tagFlagRequired {
+		switch strings.TrimSpace(flag) {
+		case tagFlagRequired:
 			required = true
+		case tagFlagAbsolute:
+			absolute = true
 		}
 	}
 
-	return name, required
+	return name, required, absolute
 }

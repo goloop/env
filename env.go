@@ -28,6 +28,11 @@ const (
 	// as required, e.g. `env:"KEY,required"`.
 	tagFlagRequired = "required"
 
+	// tagFlagAbsolute marks a key as naming an environment variable in full,
+	// ignoring the prefix its enclosing structs would otherwise contribute,
+	// e.g. `env:"DATABASE_URL,absolute"`.
+	tagFlagAbsolute = "absolute"
+
 	// The defValueSep is the default separator of the items in the string of
 	// value. Comma is the conventional list separator and avoids the data
 	// loss a space default causes for values that contain spaces. Override it

@@ -101,7 +101,7 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 		}
 
 		tg := &tagGroup{
-			key:    fi.name,
+			key:    fi.key(s.prefix),
 			value:  fi.def,
 			sep:    sep,
 			layout: resolveLayout(layout),
@@ -131,9 +131,9 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 		if s.encoders[item.Type()] != nil || implementsTextMarshaler(item.Type()) {
 			value, err := toStr(item, tg.layout, s)
 			if err != nil {
-				return nil, fmt.Errorf("%s: %w", s.prefix+tg.key, err)
+				return nil, fmt.Errorf("%s: %w", tg.key, err)
 			}
-			result = append(result, pair{key: s.prefix + tg.key, value: value})
+			result = append(result, pair{key: tg.key, value: value})
 			continue
 		}
 
@@ -158,7 +158,7 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 			// Another struct.
 			// Recursive analysis of the nested structure.
 			child := settings{
-				prefix:     s.prefix + tg.key + "_",
+				prefix:     tg.key + "_",
 				separator:  s.separator,
 				timeLayout: s.timeLayout,
 				parsers:    s.parsers,
@@ -179,7 +179,7 @@ func encodeStruct(obj any, s settings) ([]pair, error) {
 			tg.value = value
 		} // switch
 
-		result = append(result, pair{key: s.prefix + tg.key, value: tg.value})
+		result = append(result, pair{key: tg.key, value: tg.value})
 	} // for
 
 	return result, nil

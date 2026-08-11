@@ -19,6 +19,7 @@ type fieldInfo struct {
 	layoutTag string // layout tag, "" if absent
 	def       string // def tag (default value)
 	required  bool
+	absolute  bool // key names the variable in full, ignoring any prefix
 }
 
 // fieldCache maps a struct reflect.Type to its cached []fieldInfo.
@@ -39,7 +40,7 @@ func cachedFields(t reflect.Type) []fieldInfo {
 			continue // unexported, like encoding/json
 		}
 
-		name, required := parseEnvTag(f.Tag.Get(tagNameKey))
+		name, required, absolute := parseEnvTag(f.Tag.Get(tagNameKey))
 		if name == defValueIgnored {
 			continue // env:"-"
 		}
@@ -55,6 +56,7 @@ func cachedFields(t reflect.Type) []fieldInfo {
 			layoutTag: f.Tag.Get(tagNameLayout),
 			def:       f.Tag.Get(tagNameValue),
 			required:  required,
+			absolute:  absolute,
 		})
 	}
 
@@ -143,4 +145,19 @@ func environMap() map[string]string {
 	}
 
 	return m
+}
+
+// key returns the environment variable name this field reads and writes.
+//
+// Normally that is the prefix its enclosing structs built up, plus the field's
+// own name. A field tagged "absolute" drops the prefix entirely and names the
+// variable in full, which is how a nested struct reaches a variable the
+// deployment already calls something fixed - DATABASE_URL sitting inside a DB
+// struct that would otherwise make it DB_DATABASE_URL. The whole prefix chain
+// goes, not one level of it: a name that is absolute is absolute.
+func (f fieldInfo) key(prefix string) string {
+	if f.absolute {
+		return f.name
+	}
+	return prefix + f.name
 }

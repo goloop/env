@@ -66,7 +66,10 @@
 // # Struct tags
 //
 //   - env: the key name; "-" ignores the field; an inline "required" flag
-//     (env:"KEY,required") makes it mandatory.
+//     (env:"KEY,required") makes it mandatory, and an inline "absolute" flag
+//     (env:"DATABASE_URL,absolute") names the variable in full, ignoring the
+//     prefix its enclosing structs would otherwise contribute - which is how
+//     a nested struct reaches a name the deployment already fixed.
 //   - def: a default value used when the key is absent.
 //   - sep: the separator for slice/array values (default: a comma).
 //   - layout: the layout for time.Time fields (default: RFC3339).
@@ -102,6 +105,37 @@
 // and reader/writer-based variants (Read, Parse, All, UnmarshalMap, MarshalMap,
 // UnmarshalFile, MarshalFile, UnmarshalReader, MarshalWriter) have no global
 // side effects.
+//
+// # Validating what was decoded
+//
+// The canonical shape of a config loader is three steps, and the third is
+// yours:
+//
+//	func Load(files ...string) (*Config, error) {
+//	    _ = env.Load(files...)
+//	    var c Config
+//	    if err := env.Unmarshal(&c); err != nil {
+//	        return nil, err
+//	    }
+//	    if err := c.Validate(); err != nil {
+//	        return nil, err
+//	    }
+//	    return &c, nil
+//	}
+//
+// The "required" flag covers presence, which is the part a tag can express.
+// Rules that involve more than one field cannot be: that two secrets must
+// differ, that a limit must sit below a ceiling, that a key must be long
+// enough to sign with. Those live in a Validate method the application writes
+// and calls, and calling it at startup is what turns a misconfiguration into a
+// process that refuses to start rather than one that fails on the first
+// request that happens to need the value.
+//
+// Unmarshal deliberately does not call such a method for you, even when the
+// target has one. The footgun is symmetrical - forgetting to write the method
+// is exactly as easy as forgetting to call it - and an implicit call would
+// have a decoder invoking application logic, which is a surprising thing for a
+// decoder to do and a hard thing to find when it misbehaves.
 //
 // See DOC.md (English) and DOC.UK.md (Ukrainian) for the full reference.
 package env

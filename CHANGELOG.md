@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-08-11
+
+Minor release: let a nested field name a variable in full.
+
+### Added
+- An inline `absolute` flag on the env tag - `env:"DATABASE_URL,absolute"` -
+  names the environment variable exactly, ignoring the prefix its enclosing
+  structs contribute. Deployments fix some names once and for all, and grouping
+  fields in Go should not rename them: without this, moving pool settings into
+  a DB struct turns DATABASE_URL into DB_DATABASE_URL and the config has to be
+  flattened back out to match reality. The flag drops the whole prefix chain,
+  including one set with `WithPrefix`, and `Marshal` writes the same name
+  `Unmarshal` reads.
+
+### Documentation
+- The package documentation writes down the canonical `Load` -> `Unmarshal` ->
+  `Validate` shape, why the third step is the application's own (a tag can
+  express presence, not rules spanning several fields), and why `Unmarshal`
+  does not call a `Validate` method for you even when one exists: forgetting to
+  write the method is exactly as easy as forgetting to call it, and an implicit
+  call would put application logic inside a decoder.
+
 ## [Unreleased]
 
 ## [2.6.0]
