@@ -171,7 +171,7 @@ func readParseStore(filename string, expand, update, forced bool) error {
 		if update || !preexisting[e.key] {
 			value := e.value
 			if expand && e.expandable() && strings.Contains(value, "$") {
-				value = os.ExpandEnv(value)
+				value = expandVars(value, os.Getenv)
 			}
 			if err := os.Setenv(e.key, value); err != nil {
 				return err
@@ -272,7 +272,7 @@ func parse(r io.Reader, expand bool) (map[string]string, error) {
 	for _, e := range entries {
 		value := e.value
 		if expand && e.expandable() && strings.Contains(value, "$") {
-			value = os.Expand(value, lookup)
+			value = expandVars(value, lookup)
 		}
 		result[e.key] = value
 	}

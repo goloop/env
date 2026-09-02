@@ -33,11 +33,18 @@ func Environ() []string {
 	return os.Environ()
 }
 
-// Expand is synonym for the os.Expand, replaces ${var} or $var in the
-// string according to the values of the current environment variables.
-// References to undefined variables are replaced by the empty string.
+// Expand replaces ${NAME} and $NAME in the string with the value of the
+// matching environment variable, the same way the loaders in this
+// package do. A reference to a variable that is not set becomes empty.
+//
+// A reference is recognised only when NAME is a name this format could
+// have defined, that is [A-Za-z_][A-Za-z0-9_]*. Anything else keeps its
+// "$": a price ("cost: $100"), a one-liner ("$1 == x") and a password
+// ("pa$$word") are values, not substitutions. That is the one place this
+// differs from os.Expand, which reads "$1" as the shell's first
+// positional parameter and would leave "cost: 00" behind.
 func Expand(value string) string {
-	return os.Expand(value, os.Getenv)
+	return expandVars(value, os.Getenv)
 }
 
 // Lookup is synonym for the [os.LookupEnv], retrieves the value of

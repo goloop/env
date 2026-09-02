@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2026-09-02
+
+Minor release: variable expansion stops reading the shell's positional
+parameters. No API change, but every value containing a `$` is read the way it
+is written from here on, so this is worth a look before upgrading.
+
+### Fixed
+- `${VAR}`/`$VAR` expansion no longer treats `$1` through `$9` (or `$@`, `$$`
+  and the rest of the shell's specials) as variable names. `os.Expand`, which
+  the loaders used, implements the shell's substitution language, and a `.env`
+  file has no positional parameters - but it does have prices, awk and sed
+  one-liners, regular expressions and passwords, and each of those quietly lost
+  part of itself:
+
+  ```ini
+  PRICE=cost: $100          # was "cost: 00"
+  DISCOUNT="save $5 today"  # was "save  today"
+  AWK=$1 == "x"             # was " == \"x\""
+  PASSWORD=pa$$word         # was "pa"
+  ```
+
+  A reference is now recognised only when it names a key this format could
+  define, that is `[A-Za-z_][A-Za-z0-9_]*`. Anything else keeps its `$` as
+  written, a doubled `$$` is never a reference, and single quotes and backticks
+  remain the literal forms. A value that always named a real variable behaves
+  exactly as before.
+- An unterminated `${` is text rather than an instruction to swallow the rest
+  of the value, which is what `os.Expand` did with it.
+
+### Changed
+- `Expand` was documented as a synonym for `os.Expand` and is no longer one: it
+  now follows the same name rule as the loaders. The signature is unchanged.
+  Naming one substitution language and implementing another in the same package
+  was the underlying mistake; this is the half that had to change.
+
+  This is why the release is minor rather than a patch. The defect is a defect,
+  but the documented contract of a public function changed with it, and the
+  reading of every value containing a `$` changed across `Load`, `Overload`,
+  `Read`, `Parse` and their file and reader variants.
+
+### Documentation
+- The reference, the README and the package documentation state the name rule
+  and show what keeps its `$`.
+
 ## [2.7.1] - 2026-08-11
 
 Patch release.

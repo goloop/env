@@ -259,6 +259,10 @@ LIST=a:b:c                     # split with a sep tag, e.g. sep:":"
 Variable expansion (`${VAR}` / `$VAR`) is resolved against earlier keys in the
 file and the existing environment. Single quotes and backticks are literal.
 
+A reference has to name a key (`[A-Za-z_][A-Za-z0-9_]*`), so a value that
+merely contains a `$` keeps it: `PRICE=cost: $100`, `AWK=$1 == "x"` and
+`PASSWORD=pa$$word` are read exactly as written.
+
 See **[DOC.md](DOC.md)** for the full reference, every function, more examples
 and tips (Ukrainian: **[DOC.UK.md](DOC.UK.md)**).
 

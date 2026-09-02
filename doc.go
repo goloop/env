@@ -97,6 +97,13 @@
 // quoted values, full-line and inline comments, the optional export prefix and
 // ${VAR}/$VAR expansion (in unquoted and double-quoted values only).
 //
+// A reference is only a reference when it names a key: VAR must match
+// [A-Za-z_][A-Za-z0-9_]*, the same names this format can define. Anything else
+// keeps its "$" as written, so a price ("cost: $100"), a one-liner
+// ("$1 == x") and a password ("pa$$word") are values rather than
+// substitutions. Single quotes and backticks remain the literal forms; there
+// is no separate escape for "$".
+//
 // # Concurrency
 //
 // Loading and marshaling act on the global process environment. Beyond the

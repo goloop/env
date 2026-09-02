@@ -578,7 +578,7 @@ Thin, dependency-free wrappers over the standard `os` package:
 | `Unset(key) error`           | `os.Unsetenv` |
 | `Clear()`                    | `os.Clearenv` |
 | `Environ() []string`         | `os.Environ` |
-| `Expand(value) string`       | `os.Expand` with `os.Getenv` |
+| `Expand(value) string`       | `${VAR}`/`$VAR` from the environment |
 | `Lookup(key) (string, bool)` | `os.LookupEnv` |
 | `Exists(keys ...string) bool`| true if every key is set |
 
@@ -685,6 +685,25 @@ USER=goloop
 EMAIL="${USER}@example.com"   # -> goloop@example.com
 LITERAL='${USER}'             # -> ${USER}
 ```
+
+**A reference is only a reference when it names a key.** `VAR` has to match
+`[A-Za-z_][A-Za-z0-9_]*`, the same names this format can define. Anything else
+keeps its `$` exactly as written:
+
+```ini
+PRICE=cost: $100      # -> cost: $100
+AWK=$1 == "x"         # -> $1 == "x"
+SED=s/a/b/$2          # -> s/a/b/$2
+PASSWORD=pa$$word     # -> pa$$word , a doubled $ is never a reference
+TRAILING=100$         # -> 100$
+```
+
+There is no escape for a literal `$`, and none is needed: single quotes and
+backticks are the literal forms this format already has.
+
+A reference to a name that is not set becomes empty, as it always has. A
+`${` that is never closed is text, not an instruction to swallow the rest of
+the value.
 
 The `Raw`/`ParseRaw` variants disable expansion entirely.
 
