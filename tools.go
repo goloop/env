@@ -214,14 +214,20 @@ func scanEntries(r io.Reader, forced bool) ([]rawEntry, error) {
 		// Multiline values: if the value opens a quote that is not closed
 		// on this physical line, keep reading and join the lines with "\n"
 		// until the matching closing quote is found.
-		if q := multilineQuote(text); q != 0 {
+		if q, rest := multilineQuote(text); q != 0 {
 			var b strings.Builder
 			b.WriteString(text)
+			// Scan only the bytes each new line adds, carrying the escape
+			// state across the "\n" join: rescanning the whole value on
+			// every line made an N-line value cost O(N^2).
+			scan := quoteScan{quote: q}
+			scan.feed(rest)
 			for scanner.Scan() {
 				cont := scanner.Text()
 				b.WriteByte('\n')
 				b.WriteString(cont)
-				if valueClosed(b.String(), q) {
+				scan.feed("\n")
+				if scan.feed(cont) {
 					break // closing quote found
 				}
 			}
@@ -427,26 +433,27 @@ func expandEscapes(s string) string {
 
 // The multilineQuote reports the opening quote byte (", ' or `) when the
 // given line starts a quoted value whose quote is not closed on the same
-// line (i.e. the start of a multiline value). It returns 0 otherwise.
-func multilineQuote(line string) byte {
+// line (i.e. the start of a multiline value), together with the text that
+// follows the opening quote. It returns 0 otherwise.
+func multilineQuote(line string) (quote byte, rest string) {
 	// Comments and empty lines never start a value.
 	if isEmpty(line) {
-		return 0
+		return 0, ""
 	}
 
 	pos := strings.IndexByte(line, '=')
 	if pos == -1 {
-		return 0
+		return 0, ""
 	}
 
 	value := strings.TrimLeft(line[pos+1:], " \t")
 	if value == "" {
-		return 0
+		return 0, ""
 	}
 
 	q := value[0]
 	if q != '"' && q != '\'' && q != '`' {
-		return 0
+		return 0, ""
 	}
 
 	// The opening quote is unterminated only when there is no matching closing
@@ -455,24 +462,40 @@ func multilineQuote(line string) byte {
 	// (KEY='abc' # don't), falsely opening a multiline value and silently
 	// swallowing the following lines.
 	if _, _, ok := parseQuoted(value, q); ok {
-		return 0
+		return 0, ""
 	}
 
-	return q
+	return q, value[1:]
 }
 
-// The valueClosed reports whether the quoted value in line (the text after the
-// first '=') is terminated by a matching closing quote. It is used to end
-// multiline accumulation with the same escape-aware scan as parseQuoted, so a
-// quote inside a trailing inline comment does not fool the terminator check.
-func valueClosed(line string, quote byte) bool {
-	pos := strings.IndexByte(line, '=')
-	if pos == -1 {
-		return false
+// The quoteScan looks for the closing quote of a multiline value with the
+// same escape-aware rules as parseQuoted, but incrementally: feed is called
+// with each new chunk of text and the escape state carries over between
+// calls, so every byte is examined exactly once. A quote inside a trailing
+// inline comment cannot fool it, because the scan stops at the first
+// unescaped quote just like parseQuoted does.
+type quoteScan struct {
+	quote   byte
+	escaped bool // the next byte is escaped by a preceding backslash
+}
+
+// The feed scans s and reports whether it contains the unescaped closing
+// quote. Once it has returned true the scanner must not be fed again.
+func (q *quoteScan) feed(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if q.escaped {
+			q.escaped = false
+			continue
+		}
+		switch s[i] {
+		case '\\':
+			q.escaped = true
+		case q.quote:
+			return true
+		}
 	}
-	value := strings.TrimLeft(line[pos+1:], " \t")
-	_, _, ok := parseQuoted(value, quote)
-	return ok
+
+	return false
 }
 
 // The isKeyByte reports whether c is allowed in a key name: a letter or

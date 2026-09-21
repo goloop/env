@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/goloop/env/v2"
 )
@@ -145,5 +146,74 @@ func TestParserOnPointerType(t *testing.T) {
 	}
 	if obj.M.cents != 3 {
 		t.Errorf("M.cents = %d, want 3", obj.M.cents)
+	}
+}
+
+// TestMultilineValueScalesLinearly guards the incremental closing-quote scan:
+// a value spanning many physical lines must be parsed in time proportional
+// to its size, not to the square of its line count.
+func TestMultilineValueScalesLinearly(t *testing.T) {
+	const n = 40000
+	body := "K='\n" + strings.Repeat("0123456789abcdef\n", n) + "'\nNEXT=1\n"
+
+	start := time.Now()
+	m, err := env.ParseRaw(strings.NewReader(body))
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("ParseRaw: %v", err)
+	}
+	if got := strings.Count(m["K"], "\n"); got != n+1 {
+		t.Errorf("K has %d newlines, want %d", got, n+1)
+	}
+	if m["NEXT"] != "1" {
+		t.Errorf("NEXT = %q, want %q (line swallowed?)", m["NEXT"], "1")
+	}
+	// The quadratic scan took over ten seconds here; the linear one takes
+	// milliseconds. A generous bound keeps the test stable on slow machines.
+	if elapsed > 2*time.Second {
+		t.Errorf("parsing %d lines took %v, want a linear scan", n, elapsed)
+	}
+}
+
+// TestMultilineEscapeCarriesAcrossLines checks that the escape state is
+// carried between physical lines exactly as a single scan would see it: a
+// backslash at the end of a line escapes the newline, an escaped quote on a
+// continuation line does not close the value, and a quote inside a trailing
+// inline comment cannot close it either.
+func TestMultilineEscapeCarriesAcrossLines(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			"escaped quote on continuation",
+			"K=\"a\nb \\\" c\nd\"\nNEXT=1\n",
+			"a\nb \" c\nd",
+		},
+		{
+			"backslash at end of line",
+			"K=\"a\\\nb\"\nNEXT=1\n",
+			"a\\\nb",
+		},
+		{
+			"closing quote then comment with quote",
+			"K='a\nb' # don't\nNEXT=1\n",
+			"a\nb",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m, err := env.Parse(strings.NewReader(c.body))
+			if err != nil {
+				t.Fatalf("Parse: %v", err)
+			}
+			if m["K"] != c.want {
+				t.Errorf("K = %q, want %q", m["K"], c.want)
+			}
+			if m["NEXT"] != "1" {
+				t.Errorf("NEXT = %q, want %q (line swallowed?)", m["NEXT"], "1")
+			}
+		})
 	}
 }

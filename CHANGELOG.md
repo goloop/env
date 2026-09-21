@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.1] - 2026-09-21
+
+Patch release.
+
+### Fixed
+- A quoted value spanning many physical lines is parsed in time proportional
+  to its size. The scan for the closing quote restarted from the beginning of
+  the value on every new line, so a value of N lines cost O(N^2): 40 000 short
+  lines took over ten seconds to load. The scan now carries its escape state
+  across lines and looks only at the bytes each line adds; the same file loads
+  in milliseconds. Parsing results are unchanged.
+
 ## [2.8.0] - 2026-09-02
 
 Minor release: variable expansion stops reading the shell's positional
