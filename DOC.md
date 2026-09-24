@@ -652,6 +652,9 @@ line two
 line three"
 ```
 
+A value of any length costs time proportional to its size, so a PEM chain or a
+long key is no slower to read than the bytes it occupies.
+
 ### Comments
 
 ```ini

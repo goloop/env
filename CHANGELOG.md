@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.2] - 2026-09-24
+
+Patch release.
+
+### Documentation
+- The reference notes that a quoted value costs time proportional to its size,
+  so a PEM chain or a long key reads as fast as its bytes. The behaviour is
+  from 2.8.1; only the promise was missing.
+
 ## [2.8.1] - 2026-09-21
 
 Patch release.
