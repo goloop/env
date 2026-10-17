@@ -64,7 +64,11 @@ func WithParser[T any](parse func(string) (T, error)) Option {
 		}
 		s.parsers[rt] = func(v string) (reflect.Value, error) {
 			out, err := parse(v)
-			return reflect.ValueOf(out), err
+			rv := reflect.ValueOf(out)
+			if !rv.IsValid() {
+				rv = reflect.Zero(rt)
+			}
+			return rv, err
 		}
 	}
 }

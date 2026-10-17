@@ -382,6 +382,7 @@ func setValue(item reflect.Value, value, layout string, s settings) error {
 	switch item.Type() {
 	case timeDurationType:
 		if value == "" {
+			item.SetZero()
 			return nil
 		}
 		d, err := time.ParseDuration(value)
@@ -392,6 +393,7 @@ func setValue(item reflect.Value, value, layout string, s settings) error {
 		return nil
 	case timeTimeType:
 		if value == "" {
+			item.SetZero()
 			return nil
 		}
 		tm, err := time.Parse(layout, value)
@@ -402,6 +404,7 @@ func setValue(item reflect.Value, value, layout string, s settings) error {
 		return nil
 	case timeTimePtrType:
 		if value == "" {
+			item.SetZero()
 			return nil
 		}
 		tm, err := time.Parse(layout, value)
@@ -448,9 +451,9 @@ func setValue(item reflect.Value, value, layout string, s settings) error {
 	}
 
 	// Any type implementing TextUnmarshaler (net.IP, netip.Addr, custom enums,
-	// ...) is parsed via UnmarshalText. An empty value leaves the zero value.
+	// ...) is parsed via UnmarshalText, including an explicitly empty value.
 	// This is checked after the special-cased time/url types above.
-	if value != "" && item.CanAddr() {
+	if item.CanAddr() {
 		if u, ok := item.Addr().Interface().(encoding.TextUnmarshaler); ok {
 			return u.UnmarshalText([]byte(value))
 		}

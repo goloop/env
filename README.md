@@ -279,3 +279,7 @@ Bug reports and pull requests are welcome. Please run `go test ./...`,
 ## License
 
 `env` is released under the MIT License. See [LICENSE](LICENSE).
+
+## Release v2.8.3
+
+Handle nil parser results and explicitly empty time and text values.

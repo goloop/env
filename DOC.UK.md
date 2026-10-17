@@ -771,3 +771,7 @@ var defaults embed.FS
 f, _ := defaults.Open("defaults.env")
 env.LoadReader(f) // не перезаписує те, що вже задано
 ```
+
+## Реліз v2.8.3
+
+WithParser підтримує nil-результат інтерфейсного типу. Явно порожні значення очищують time.Time, *time.Time та time.Duration. TextUnmarshaler викликається і для явно порожнього значення.

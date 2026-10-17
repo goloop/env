@@ -780,3 +780,7 @@ var defaults embed.FS
 f, _ := defaults.Open("defaults.env")
 env.LoadReader(f) // does not override anything already set
 ```
+
+## Release v2.8.3
+
+Handle nil parser results and explicitly empty time and text values.
