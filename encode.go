@@ -397,9 +397,9 @@ func needsQuoting(value string, raw bool) bool {
 		return false // KEY= is a valid empty value
 	}
 
-	// Unquoted values are trimmed, so edge whitespace would be lost.
-	if value[0] == ' ' || value[0] == '\t' ||
-		value[len(value)-1] == ' ' || value[len(value)-1] == '\t' {
+	// Unquoted values are trimmed with strings.TrimSpace, so all surrounding
+	// whitespace must be quoted to survive decoding.
+	if strings.TrimSpace(value) != value {
 		return true
 	}
 
