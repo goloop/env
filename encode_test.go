@@ -9,6 +9,52 @@ import (
 	"testing"
 )
 
+func TestMarshalStringWhitespaceRoundTrip(t *testing.T) {
+	type config struct {
+		Value string `env:"VALUE"`
+	}
+	tests := []struct {
+		name  string
+		value string
+		wire  string
+	}{
+		{"leading NBSP", "\u00a0value", "VALUE=\"\u00a0value\"\n"},
+		{"trailing EM SPACE", "value\u2003", "VALUE=\"value\u2003\"\n"},
+		{"whitespace only", "\u00a0\u2003", "VALUE=\"\u00a0\u2003\"\n"},
+		{"vertical tab and form feed", "\vvalue\f", "VALUE=\"\vvalue\f\"\n"},
+		{"ASCII whitespace", "\t value ", "VALUE=\"\\t value \"\n"},
+		{"internal NBSP", "inner\u00a0space", "VALUE=inner\u00a0space\n"},
+		{"plain", "value", "VALUE=value\n"},
+		{"empty", "", "VALUE=\n"},
+	}
+	for _, raw := range []bool{false, true} {
+		t.Run(fmt.Sprintf("raw=%t", raw), func(t *testing.T) {
+			marshal, unmarshal := MarshalString, UnmarshalString
+			if raw {
+				marshal, unmarshal = MarshalStringRaw, UnmarshalStringRaw
+			}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					wire, err := marshal(config{Value: tt.value})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if wire != tt.wire {
+						t.Errorf("encoded %q, want %q", wire, tt.wire)
+					}
+					var back config
+					if err := unmarshal(wire, &back); err != nil {
+						t.Fatal(err)
+					}
+					if back.Value != tt.value {
+						t.Errorf("round-trip got %q, want %q", back.Value, tt.value)
+					}
+				})
+			}
+		})
+	}
+}
+
 // The configEncode structure with custom MarshalEnv method.
 type configEncode struct {
 	Host         string   `env:"HOST"`
