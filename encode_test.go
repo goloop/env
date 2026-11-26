@@ -630,3 +630,28 @@ func TestUnmarshalMultiService(t *testing.T) {
 		t.Errorf("expected `B` but `%s`", v)
 	}
 }
+
+type invalidEnvironment struct {
+	values map[string]string
+}
+
+func (m invalidEnvironment) MarshalEnv() (map[string]string, error) {
+	return m.values, nil
+}
+
+func TestMarshalValidatesBeforeWriting(t *testing.T) {
+	const key = "ENV_MARSHAL_VALIDATE_A"
+	for _, invalid := range []struct{ key, value string }{
+		{"ENV_MARSHAL_VALIDATE_Z=invalid", "new"},
+		{"ENV_MARSHAL_VALIDATE_Z\x00", "new"},
+		{"ENV_MARSHAL_VALIDATE_Z", "new\x00"},
+	} {
+		t.Setenv(key, "old")
+		if err := Marshal(invalidEnvironment{map[string]string{key: "new", invalid.key: invalid.value}}); err == nil {
+			t.Fatal("Marshal accepted an invalid environment entry")
+		}
+		if got := Get(key); got != "old" {
+			t.Fatalf("environment was changed before validation: %q", got)
+		}
+	}
+}

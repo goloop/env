@@ -7,6 +7,7 @@ import (
 	"iter"
 	"os"
 	"strings"
+	"syscall"
 )
 
 const (
@@ -515,7 +516,8 @@ func UnmarshalStringRaw(s string, obj any, opts ...Option) error {
 //
 // If obj implements Marshaler, its MarshalEnv method provides the key/value
 // pairs that are written. To produce the pairs without changing the
-// environment use MarshalMap; to write them to a file use MarshalFile.
+// environment use MarshalMap; to write them to a file use MarshalFile. Marshal
+// validates all keys and values before setting any environment variable.
 //
 //	var config = Config{Host: "localhost", Port: 8080}
 //	if err := env.Marshal(config); err != nil {
@@ -527,6 +529,11 @@ func Marshal(obj any, opts ...Option) error {
 		return err
 	}
 
+	for _, p := range pairs {
+		if p.key == "" || strings.ContainsAny(p.key, "=\x00") || strings.ContainsRune(p.value, 0) {
+			return os.NewSyscallError("setenv", syscall.EINVAL)
+		}
+	}
 	for _, p := range pairs {
 		if err := Set(p.key, p.value); err != nil {
 			return err

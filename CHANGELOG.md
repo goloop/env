@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.8.4] - 2026-11-26
 
-Preserve slice elements next to multi-character separators.
+Preserve slice elements next to multi-character separators. Validate all environment entries before writing any of them with Marshal.
 
 ## [2.8.3] - 2026-10-18
 

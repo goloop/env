@@ -567,6 +567,8 @@ func (c Config) MarshalEnv() (map[string]string, error) {
 }
 ```
 
+Before writing to the process environment, `Marshal` checks for empty keys, equals signs in keys and NUL bytes in keys or values. Use `MarshalMap` to inspect the pairs without writing to the environment.
+
 ## Environment helpers
 
 Thin, dependency-free wrappers over the standard `os` package:

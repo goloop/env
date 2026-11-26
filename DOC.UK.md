@@ -574,6 +574,8 @@ func (c Config) MarshalEnv() (map[string]string, error) {
 | `Lookup(key) (string, bool)` | `os.LookupEnv` |
 | `Exists(keys ...string) bool`| true, якщо задано кожен ключ |
 
+Перед записом до оточення процесу `Marshal` перевіряє порожні ключі, знак рівності в ключах і байт NUL у ключах та значеннях. Щоб отримати пари для попереднього перегляду, викличте `MarshalMap`.
+
 ## Помилки
 
 Помилки валідації — типізовані sentinel-и, перевіряються через `errors.Is`:
