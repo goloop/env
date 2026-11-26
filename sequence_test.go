@@ -203,3 +203,24 @@ func TestSequenceManualQuoting(t *testing.T) {
 		t.Errorf(`TAGS="a,b",c -> %v, want ["a,b" "c"]`, c.Tags)
 	}
 }
+
+func TestMultiCharacterSeparatorRoundTrip(t *testing.T) {
+	type config struct {
+		Words []string
+	}
+	for _, words := range [][]string{{"a:", "b"}, {"a", ":b"}, {"::", ":", ""}} {
+		want := config{Words: words}
+		opts := env.WithSeparator("::")
+		encoded, err := env.MarshalMap(want, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got config
+		if err := env.UnmarshalMap(encoded, &got, opts); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("round trip %q returned %q", words, got.Words)
+		}
+	}
+}

@@ -444,7 +444,7 @@ secret fields you never want mapped.
 | Booleans | `bool` (`true`/`false`, `1`/`0`, `t`/`f` per `strconv.ParseBool`, plus `yes`/`no` and `on`/`off`, case-insensitive) |
 | Integers | `int`, `int8`, `int16`, `int32`, `int64` (with range checks) |
 | Unsigned | `uint`, `uint8`, `uint16`, `uint32`, `uint64` (with range checks) |
-| Floats   | `float32`, `float64` (shortest round-tripping representation) |
+| Floats   | `float32`, `float64` (shortest round-tripping representation, including NaN and ±Inf) |
 | URLs     | `url.URL` |
 | Time     | `time.Duration` (`30s`, `1h30m`), `time.Time` (layout-driven) |
 | Compound | nested structs, pointers, slices and arrays of the above |
