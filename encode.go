@@ -257,7 +257,7 @@ func quoteElement(v, sep string) string {
 	}
 	// Quote when the element contains the separator or any character splitN
 	// groups on (quotes/brackets), which would otherwise mis-split it.
-	if !strings.Contains(v, sep) && !strings.ContainsAny(v, "\"'`()[]{}") {
+	if !strings.ContainsAny(v, sep) && !strings.ContainsAny(v, "\"'`()[]{}") {
 		return v
 	}
 

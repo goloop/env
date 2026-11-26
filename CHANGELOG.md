@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.4] - 2026-11-26
+
+Preserve slice elements next to multi-character separators.
+
 ## [2.8.3] - 2026-10-18
 
 Handle nil parser results and explicitly empty time and text values.
